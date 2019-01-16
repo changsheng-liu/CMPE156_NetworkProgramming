@@ -4,38 +4,84 @@
 #include <unistd.h>
 #include <sys/socket.h> 
 #include <arpa/inet.h>
+#include <ctype.h>
+#include <regex.h>
+
+int isValidIP(char * ipaddr) {
+    const char * ip_pattern = "^([0-9]{1,3}\\.|\\*\\.){3}([0-9]{1,3}|\\*){1}$";
+	regex_t reg;
+    int ret = regcomp(&reg, ip_pattern, REG_EXTENDED);
+    if(ret > 0){
+        return 0;
+    }
+    int status = regexec(&reg,ipaddr,0,NULL,0);
+    if(status == REG_NOMATCH) {
+        regfree(&reg);
+        return 0;
+    }
+    regfree(&reg);
+
+    struct sockaddr_in sa;
+    int result = inet_pton(AF_INET, ipaddr, &(sa.sin_addr));
+    return result > 0?1:0;
+}
 
 int main(int argc, char **argv) {
     // part 1: analysis input
-    if(argc < 3 || argc > 5) {
-        fprintf(stderr,"Please input correct url!\n");
+    if(argc < 3 || argc > 4) {
+        fprintf(stderr,"Please input as instruction!\n");
         return -1;
     }
-    char * t_ipaddr = argv[1];
 
-    if(argc == 5 && strcmp(argv[4],"-h") != 0){
-        fprintf(stderr,"Please enter input correct command, \"-h\" at the end as head request!\n");
+    if(argc == 4 && strcmp(argv[3],"-h") != 0){
+        fprintf(stderr,"Please input correct command, \"-h\" at the end for head request!\n");
         return -1;
     }
-    int iplen = strlen(t_ipaddr);
+
+    char * t_ipaddr = argv[1];
+    if(isValidIP(t_ipaddr) == 0) {
+        fprintf(stderr,"Please input legal IP address!\n");
+        return -1;
+    }
+
+    //ip address
     char ipaddr[16] = "";
     strcpy(ipaddr,t_ipaddr);
+
+    //get or head
     int need_head = 0;
-    int port = 80;
-    char target[2048] = "";
-    char host[2048] = "";
-    if(argc == 5){
-        strcpy(host, argv[2]);
-        strcpy(target, argv[3]);
+    if(argc == 4){
         need_head = 1;
-    }else{
-        char temp[4096] = "";
-        strcpy(temp, argv[2]);
-        strcpy(host, strtok(temp, ":"));
-        port = atoi(strtok(NULL, "/"));
-        strcpy(target, strtok(NULL, ""));
     }
-    char request[4096] = "";
+
+    //host, port and target
+    if(strlen(argv[2]) > 4096){
+        fprintf(stderr,"URL is too long!\n");
+        return -1;
+    }
+    char temp[4096] = "";
+    strcpy(temp, argv[2]);
+
+    char host[512] = "";
+    int port = 80;
+    char target[3584] = "";
+
+    char * isPort = strstr(temp, ":");
+    if(isPort == NULL){
+        strcpy(host,strtok(temp,"/"));
+        strcpy(target, strtok(NULL, ""));
+    }else{
+        if(strlen(isPort) > 2 && isdigit(isPort[1])){
+            strcpy(host, strtok(temp, ":"));
+            port = atoi(strtok(NULL, "/"));
+            strcpy(target, strtok(NULL, ""));
+        }else{
+            fprintf(stderr, "Illegal port number!\n");
+            return -1;
+        }
+    }
+
+    char request[4444] = "";
     if(need_head == 0){
         sprintf(request, "GET /%s HTTP/1.1\r\nHost: %s\r\n\r\n",target,host);
     }else{
@@ -58,6 +104,7 @@ int main(int argc, char **argv) {
         fprintf(stderr,"Fail: cannot make connection!\n");
         return -1;
     }
+    
     if (write(fd_socket, request, sizeof(request)) < 0) {
         fprintf(stderr,"Fail: cannot send request!\n");
         return -1;
@@ -67,9 +114,10 @@ int main(int argc, char **argv) {
     int ret;
     char buf[1024];
     if(need_head > 0){
+
         while((ret = read(fd_socket, buf, sizeof(buf)-1)) > 0){
             buf[ret] = 0x00;
-            printf("%s",buf); //https://www.ibm.com/support/knowledgecenter/en/SSLTBW_2.3.0/com.ibm.zos.v2r3.bpxbd00/rtrea.htm
+            printf("%s",buf);
         }
     }else {
         FILE * fp;
@@ -81,8 +129,12 @@ int main(int argc, char **argv) {
         while((ret = read(fd_socket, buf, sizeof(buf)-1)) > 0){
             buf[ret] = 0x00;
             fprintf(fp, "%s", buf);
-            fflush(fp);   
+            fflush(fp); 
+            // todo chunked enable
+
         }
+        //    TODO remove head
+        // extra task: remove head
 
         fclose(fp);
     }   
