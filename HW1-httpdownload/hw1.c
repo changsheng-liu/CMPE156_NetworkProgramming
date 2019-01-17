@@ -93,8 +93,6 @@ int main(int argc, char **argv) {
             }else{
                 port = atoi(strtok(NULL, ""));
             }
-            
-            
         }else{
             fprintf(stderr, "Illegal port number!\n");
             return -1;
