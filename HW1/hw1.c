@@ -6,6 +6,8 @@
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <regex.h>
+#include <time.h>
+#include <math.h>
 
 int isValidIP(char * ipaddr) {
     const char * ip_pattern = "^([0-9]{1,3}\\.|\\*\\.){3}([0-9]{1,3}|\\*){1}$";
@@ -60,7 +62,12 @@ int main(int argc, char **argv) {
         return -1;
     }
     char temp[4096] = "";
-    strcpy(temp, argv[2]);
+    char * httphead = strstr(argv[2],"http://");
+    if(httphead != NULL) {
+        strcpy(temp, argv[2]+7);
+    }else{
+        strcpy(temp, argv[2]);
+    }
 
     char host[512] = "";
     int port = 80;
@@ -121,7 +128,7 @@ int main(int argc, char **argv) {
         }
     }else {
         FILE * fp;
-        
+        time_t start =  clock(), finish;
         if((fp = fopen("output.dat", "w+")) == NULL) {
             fprintf(stderr,"Fail: cannot open target file!\n");
             return -1;
@@ -130,12 +137,39 @@ int main(int argc, char **argv) {
             buf[ret] = 0x00;
             fprintf(fp, "%s", buf);
             fflush(fp); 
-            // todo chunked enable
-
+            // extra task: ttl
+            finish = clock();
+            double diff = difftime(start,finish);
+            if(floor(diff) > 240) {
+                break;
+            }
         }
-        //    TODO remove head
-        // extra task: remove head
 
+        fclose(fp);
+        
+        // extra task: remove head
+        if((fp = fopen("output.dat", "r+")) == NULL) {
+            fprintf(stderr,"Fail: cannot remove head in output file!\n");
+            return -1;
+        }
+        FILE* fp2;
+        if((fp2 = fopen("output2.dat", "w+")) == NULL) {
+            fprintf(stderr,"Fail: cannot remove head in output file!\n");
+            return -1;
+        }
+        char line[4096];
+        int isBody = 0;
+        while(!feof(fp)) {
+		    fgets(line,4096,fp);
+            if(isBody == 1){
+                fprintf(fp2, "%s", line);
+                fflush(fp2); 
+            }
+            if(isBody == 0 && strstr(line, "\r\n") != NULL && line[0] == '\r') {
+                isBody = 1;
+            }
+	    }
+        fclose(fp2);
         fclose(fp);
     }   
     close(fd_socket);
