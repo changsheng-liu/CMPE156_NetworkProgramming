@@ -7,7 +7,6 @@
 #include <ctype.h>
 #include <regex.h>
 #include <time.h>
-#include <math.h>
 
 int isValidIP(char * ipaddr) {
     const char * ip_pattern = "^([0-9]{1,3}\\.|\\*\\.){3}([0-9]{1,3}|\\*){1}$";
@@ -68,27 +67,41 @@ int main(int argc, char **argv) {
     }else{
         strcpy(temp, argv[2]);
     }
-
     char host[512] = "";
     int port = 80;
     char target[3584] = "";
 
     char * isPort = strstr(temp, ":");
+
+    char * t;
     if(isPort == NULL){
-        strcpy(host,strtok(temp,"/"));
-        strcpy(target, strtok(NULL, ""));
+        if(strstr(temp, "/") != NULL){
+            strcpy(host, strtok(temp,"/"));
+            t = strtok(NULL, "");
+            if(t != NULL){
+                strcpy(target, t);
+            }
+        }else{
+            strcpy(host, temp);
+        }
     }else{
         if(strlen(isPort) > 2 && isdigit(isPort[1])){
             strcpy(host, strtok(temp, ":"));
-            port = atoi(strtok(NULL, "/"));
-            strcpy(target, strtok(NULL, ""));
+            if(strstr(temp, "/") != NULL){
+                port = atoi(strtok(NULL, "/"));
+                strcpy(target, strtok(NULL, ""));
+            }else{
+                port = atoi(strtok(NULL, ""));
+            }
+            
+            
         }else{
             fprintf(stderr, "Illegal port number!\n");
             return -1;
         }
     }
 
-    char request[4444] = "";
+    char request[4128] = "";
     if(need_head == 0){
         sprintf(request, "GET /%s HTTP/1.1\r\nHost: %s\r\n\r\n",target,host);
     }else{
@@ -140,7 +153,7 @@ int main(int argc, char **argv) {
             // extra task: ttl
             finish = clock();
             double diff = difftime(start,finish);
-            if(floor(diff) > 240) {
+            if(diff > 240) {
                 break;
             }
         }
