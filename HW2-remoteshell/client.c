@@ -2,9 +2,9 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
+
 #include "util.h"
+#include "mysocket.h"
 
 int main(int argc, char const *argv[])
 {
@@ -25,25 +25,8 @@ int main(int argc, char const *argv[])
     }
 
     // build client socket
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
-    if(sock < 0) {
-        fprintf(stderr, "Client Fail: Cannot establish socket connection. End of client.\n");
-        exit(-1);
-    }
+    int client_sock = build_client_socket(argv[1], atoi(argv[2]), "Client Fail: Cannot establish socket connection. End of client.");
 
-    struct sockaddr_in addr; 
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = inet_addr(argv[1]);
-    addr.sin_port = htons(atoi(argv[2]));
-
-    if(connect(sock, (struct sockaddr *) &addr, sizeof(addr)) < 0){
-        fprintf(stderr, "Client Fail: Cannot establish socket connection. End of client.\n");
-        exit(-1);
-    }
-
-
-    close(sock);
-
+    close(client_sock);
     return 0;
 }
