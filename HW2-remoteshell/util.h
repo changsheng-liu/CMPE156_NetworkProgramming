@@ -4,7 +4,8 @@
 
 int isValidIP(const char * );
 int isValidPort(const char * );
+void failHandler(const char * );
 
- #endif
+#endif
 
 

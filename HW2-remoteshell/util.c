@@ -1,7 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
 #include <arpa/inet.h>
 #include <regex.h>
 #include "util.h"
@@ -29,4 +27,9 @@ int isValidPort(const char * port) {
     int p = atoi(port);
     if(p == 0) return p;
     return 1;
+}
+
+void failHandler(const char * failMessage) {
+    fprintf(stderr, "%s\n" , failMessage);
+    exit(-1);
 }

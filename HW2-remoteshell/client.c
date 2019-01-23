@@ -10,18 +10,15 @@ int main(int argc, char const *argv[])
 {
     // check param is legal
     if(argc != 3) {
-        fprintf(stderr, "Please use client by correct input!\n");
-        exit(-1);
+        failHandler("Please use client by correct input!");
     }
 
     if(!isValidIP(argv[1])) {
-        fprintf(stderr, "Please use legal ip address!\n");
-        exit(-1);
+        failHandler("Please use legal ip address!");
     }
 
     if(!isValidPort(argv[2])) {
-        fprintf(stderr, "Please use legal port number!\n");
-        exit(-1);
+        failHandler("Please use legal port number!");
     }
 
     // build client socket
