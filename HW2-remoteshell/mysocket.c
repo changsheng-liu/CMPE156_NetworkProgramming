@@ -4,8 +4,8 @@
 #include "util.h"
 #include "mysocket.h"
 
-int build_server_socket(const int port, const char * failMessage){
-    int lis_sock = socket(AF_INET, SOCK_STREAM, 0);
+int build_server_socket(int * listen_sock, const int port, const char * failMessage){
+    int lis_sock = *listen_sock;
     if(lis_sock < 0) {
         failHandler(failMessage);
     }
