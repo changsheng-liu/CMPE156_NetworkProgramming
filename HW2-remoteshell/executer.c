@@ -34,7 +34,6 @@ void execute(const char * cmd, int * socket, int * ret_size) {
 
     }
     *ret_size = length;
-
     pclose(fp);
 }
 

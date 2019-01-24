@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <readline/readline.h>
+#include <readline/history.h>
 #include "util.h"
 #include "mysocket.h"
 
@@ -27,18 +28,27 @@ int main(int argc, char const *argv[])
     int ret;
     char buf[1024];
     char * input;
-    input = readline("client $ ");
+    while(1){
+        input = readline("client $ ");
+        add_history(input);
+        
+        if (write(client_sock, input , sizeof(input)) < 0) {
+            close(client_sock);
+            failHandler("Fail: cannot send request");
+        }
+        if(strcmp(input, "exit") == 0){
+            close(client_sock);
+            break;
+        }
+        while((ret = read(client_sock, buf, sizeof(buf))) > 0){
+            buf[ret] = 0x00;
+            if(strcmp(buf,"1234567") == 0) {
+                break;
+            }else{
+                printf("%s",buf);
+            }
+        }
+    }
     
-    if (write(client_sock, input , sizeof(input)) < 0) {
-        close(client_sock);
-        failHandler("Fail: cannot send request");
-    }
-    printf("hello\n");
-    while((ret = read(client_sock, buf, sizeof(buf)-1)) > 0){
-        buf[ret] = 0x00;
-        printf("%s",buf);
-    }
-
-    close(client_sock);
     return 0;
 }
