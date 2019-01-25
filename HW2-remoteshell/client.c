@@ -23,7 +23,13 @@ int main(int argc, char const *argv[])
     }
 
     // build client socket
-    int client_sock = build_client_socket(argv[1], atoi(argv[2]), "Client Fail: Cannot establish socket connection. End of client.");
+    const char * client_build_fail_message = "Client Fail: Cannot establish socket connection. End of client.";
+
+    int client_sock = init_socket(client_build_fail_message);
+
+    struct sockaddr_in addr = init_address(inet_addr(argv[1]), atoi(argv[2]));
+
+    client_socket_connect(client_sock, (struct sockaddr *)&addr, client_build_fail_message);
 
     int ret;
     char buf[1024];
@@ -42,7 +48,7 @@ int main(int argc, char const *argv[])
         }
         while((ret = read(client_sock, buf, sizeof(buf))) > 0){
             buf[ret] = 0x00;
-            if(strcmp(buf,"1234567") == 0) {
+            if(client_receive_response_end(client_sock, buf)) {
                 break;
             }else{
                 printf("%s",buf);
