@@ -26,20 +26,24 @@ int main(int argc, char const *argv[])
     server_socket_bind_listen(lis_sock, (struct sockaddr *) &addr, 1, server_build_fail_message);
     
     int server_sock;
-    int length = 1;
+    int length;
 
-    char buf[1024];
+    char buf[BUFFER_SIZE];
     int ret;
     
     while(1) {
         server_sock = server_socket_accept(lis_sock, (struct sockaddr *) &addr, server_build_fail_message);
         
         while((ret = read(server_sock, buf, sizeof(buf)-1)) > 0){
+
             if(strcmp(buf, "exit") == 0){
                 break;
             }
+            
             buf[ret] = 0x00;
-            execute(buf, &server_sock ,&length);
+            length = execute(buf, server_sock);
+            // printf("%d\n", length);
+            // memset(buf, 0, sizeof(buf));
             server_send_response_end(server_sock);
         }
 

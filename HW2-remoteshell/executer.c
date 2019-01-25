@@ -4,63 +4,37 @@
 #include <stdlib.h>
 #include <memory.h>
 #include <string.h>
+#include <string.h>
 #include "executer.h"
+#include "mysocket.h"
 
-void execute(const char * cmd, int * socket, int * ret_size) {
+int execute(const char * cmd, int socket) {
     FILE * fp;
-    const int pad = 2048;
 
-    char buf[pad] = {0};
-    if((fp = popen(cmd, "r")) == NULL) {
+    char buf[1024] = {0};
+    char redir[100] = {0};
+    strcpy(redir, cmd);
+    strcat(redir," 2>&1");
+
+    printf("%s\n", redir);
+    if((fp = popen(redir, "r")) == NULL) {
         perror("Fail to execute!\n");
         exit(-1);
     }
 
-    char * total;
-    int empty = pad;
     int length = 0;
-    total = (char *)malloc(sizeof(char) * pad);
 
     while(fgets(buf, sizeof(buf), fp) != NULL) {
-        while(strlen(buf) >= empty) {
-            total = (char *)realloc(total, length+pad);
-            empty += pad;
-        }
-        strcpy(total+length, buf);
+        
         length += strlen(buf);
-        empty -= strlen(buf);
 
-        write(*socket,buf,strlen(buf));
+        write(socket,buf,strlen(buf));
 
     }
-    *ret_size = length;
-    pclose(fp);
+    int status = pclose(fp);
+
+    return length;
 }
-
-// void t(const char * cmd) {
-//     FILE * fp;
-//     const int pad = 2048;
-
-//     char buf[pad] = {0};
-//     if((fp = popen(cmd, "r")) == NULL) {
-//         perror("Fail to execute!\n");
-//         exit(-1);
-//     }
-
-//     int mmm;
-//     while((mmm = fread(buf, sizeof(char), sizeof(buf), fp)) != NULL) {
-        
-//         printf("%s", buf);
-//     }
-
-//     pclose(fp);
-// }
-
-// int main(int argc, char const *argv[])
-// {
-//         t("set");
-//         return 0;
-// }
 
 
 // int main(int argc, char const *argv[])

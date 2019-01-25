@@ -32,13 +32,12 @@ int main(int argc, char const *argv[])
     client_socket_connect(client_sock, (struct sockaddr *)&addr, client_build_fail_message);
 
     int ret;
-    char buf[1024];
+    char buf[BUFFER_SIZE];
     char * input;
     while(1){
         input = readline("client $ ");
         add_history(input);
-        
-        if (write(client_sock, input , sizeof(input)) < 0) {
+        if (write(client_sock, input , strlen(input)) < 0) {
             close(client_sock);
             failHandler("Fail: cannot send request");
         }
@@ -46,7 +45,7 @@ int main(int argc, char const *argv[])
             close(client_sock);
             break;
         }
-        while((ret = read(client_sock, buf, sizeof(buf))) > 0){
+        while((ret = read(client_sock, buf, sizeof(buf)-1)) > 0){
             buf[ret] = 0x00;
             if(client_receive_response_end(client_sock, buf)) {
                 break;
