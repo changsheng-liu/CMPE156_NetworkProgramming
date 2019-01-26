@@ -6,6 +6,14 @@
 #include <readline/history.h>
 #include "util.h"
 #include "mysocket.h"
+#include <signal.h>
+
+int s;
+void crashHandler(int sig){ 
+    write(s, "exit" , strlen("exit")); 
+    close(s);
+    exit(1);
+}
 
 int main(int argc, char const *argv[])
 {
@@ -30,14 +38,15 @@ int main(int argc, char const *argv[])
     struct sockaddr_in addr = init_address(inet_addr(argv[1]), atoi(argv[2]));
 
     client_socket_connect(client_sock, (struct sockaddr *)&addr, client_build_fail_message);
+ 
+    s = client_sock;
 
     int ret;
     char * input;
     struct my_socket_package * read_buf = malloc(sizeof(struct my_socket_package));
-    
+    signal(SIGINT, crashHandler);
     while(1){
         input = readline("client $ ");
-        // add_history(input);
 
         if(strlen(input) > BUFFER_SIZE) {
             printf("Please input less that 1024 char length!\n");
