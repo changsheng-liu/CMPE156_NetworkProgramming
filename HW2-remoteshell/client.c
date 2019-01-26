@@ -32,11 +32,17 @@ int main(int argc, char const *argv[])
     client_socket_connect(client_sock, (struct sockaddr *)&addr, client_build_fail_message);
 
     int ret;
-    char buf[BUFFER_SIZE];
     char * input;
+    struct my_socket_package * read_buf = malloc(sizeof(struct my_socket_package));
+    
     while(1){
         input = readline("client $ ");
-        add_history(input);
+        // add_history(input);
+
+        if(strlen(input) > BUFFER_SIZE) {
+            printf("Please input less that 1024 char length!\n");
+            continue;
+        }
         if (write(client_sock, input , strlen(input)) < 0) {
             close(client_sock);
             failHandler("Fail: cannot send request");
@@ -45,13 +51,14 @@ int main(int argc, char const *argv[])
             close(client_sock);
             break;
         }
-        while((ret = read(client_sock, buf, sizeof(buf)-1)) > 0){
-            buf[ret] = 0x00;
-            if(client_receive_response_end(client_sock, buf)) {
+
+        memset(read_buf, 0, sizeof(struct my_socket_package));
+        while((ret = read(client_sock, read_buf, sizeof(struct my_socket_package))) > 0){
+            printf("%s",read_buf->message);
+            if (read_buf->is_end) {
                 break;
-            }else{
-                printf("%s",buf);
             }
+            memset(read_buf,0,sizeof(struct my_socket_package));
         }
     }
     

@@ -3,8 +3,6 @@
 #include "util.h"
 #include "mysocket.h"
 
-#define RSPN_END    "$$12345678$$87654321$$"
-#define RSPN_END_LEN    22
 
 int init_socket(const char * failMessage){
     int tcpsocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -48,10 +46,3 @@ void client_socket_connect(int cli_sock ,struct sockaddr * addr, const char * fa
     }
 }
 
-void server_send_response_end(int sock) {
-    write(sock, RSPN_END, RSPN_END_LEN);
-}
-
-int client_receive_response_end(int sock, char * response) {
-    return strcmp(response,RSPN_END) == 0 ? 1 : 0;
-}
