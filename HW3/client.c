@@ -5,6 +5,9 @@
 #include "util.h"
 #include "mysocket.h"
 #include <signal.h>
+#include <pthread.h>
+
+#define THREAD_SIZE 3
 
 int s;
 void crashHandler(int sig){ 
@@ -13,8 +16,19 @@ void crashHandler(int sig){
     exit(1);
 }
 
+void * download(void * p) {
+
+    return NULL;
+}
+
 int main(int argc, char const *argv[])
 {
+    pthread_t download_threads[THREAD_SIZE];
+    int i;
+    for(i = 0; i < THREAD_SIZE; i++) {
+        pthread_create(&download_threads[i], NULL, download, NULL);
+    }
+    
     // check param is legal
     if(argc != 3) {
         failHandler("Please use client by correct input!");
