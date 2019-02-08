@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <arpa/inet.h>
 #include <regex.h>
 #include "util.h"
@@ -32,4 +33,14 @@ int isValidPort(const char * port) {
 void failHandler(const char * failMessage) {
     fprintf(stderr, "%s\n" , failMessage);
     exit(-1);
+}
+
+int hasFile(const char * fname) {
+    return access(fname, F_OK) != -1 ? 1 : 0;
+}
+
+int isNumber(const char * connectnum) {
+    int p = atoi(connectnum);
+    if(p == 0) return p;
+    return 1;
 }

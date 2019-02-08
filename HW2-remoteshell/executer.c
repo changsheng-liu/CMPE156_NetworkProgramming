@@ -4,7 +4,6 @@
 #include <stdlib.h>
 #include <memory.h>
 #include <string.h>
-#include <string.h>
 #include "executer.h"
 #include "mysocket.h"
 

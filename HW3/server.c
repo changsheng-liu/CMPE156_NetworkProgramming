@@ -4,6 +4,7 @@
 #include <string.h>
 #include "util.h"
 #include "mysocket.h"
+#include "myfile.h"
 
 int main(int argc, char const *argv[])
 {
@@ -25,27 +26,30 @@ int main(int argc, char const *argv[])
     server_socket_bind_listen(lis_sock, (struct sockaddr *) &addr, 1, server_build_fail_message);
     
     int server_sock;
-
-    char cmd_buf[BUFFER_SIZE];
     int ret;
-    
+    struct client_package * read_buf = malloc(sizeof(struct client_package));;
+
     while(1) {
         server_sock = server_socket_accept(lis_sock, (struct sockaddr *) &addr, server_build_fail_message);
         
-        while((ret = read(server_sock, cmd_buf, sizeof(cmd_buf))) > 0){
-            // cmd_buf[ret] = 0x00;
-
-            // if(strcmp(cmd_buf, "exit") == 0){
-            //     break;
-            // }
+        memset(read_buf, 0, sizeof(struct client_package));
+        while((ret = read(server_sock, read_buf, sizeof(struct client_package))) > 0){
+            const char * cmd = read_buf->cmd;
+            if (strcmp(cmd, CMD_BYE) == 0) { //close command
+                break;
+            }else if (strcmp(cmd, CMD_CHECKFILE) == 0) {  //check command if file is exist
+                server_response_check_file(server_sock, read_buf->file_name);
+            }else if (strcmp(cmd, CMD_DOWNLOAD) == 0) { // download command to download specific part
+                server_upload_file(server_sock, read_buf->file_name, read_buf->start_prt, read_buf->end_prt);
+            }
             
-           
+            memset(read_buf,0,sizeof(struct client_package));
         }
 
         close(server_sock);
     }
     
-    
-    
+    free(read_buf);
+
     return 0;
 }
