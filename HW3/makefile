@@ -18,5 +18,5 @@ socket: mysocket.c
 	gcc -c mysocket.c -o mysocket.o
 
 clean: 
-	rm *.o client server
+	rm *.o client server *.bat
 	# rm ./bin/*
