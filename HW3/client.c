@@ -57,6 +57,7 @@ void clean_server_info(void) {
 }
 
 void decide_chrunk(void){
+	long file_size = 4312305664;
 
 }
 
@@ -66,7 +67,7 @@ void unpackage_file(int sock){
 	memset(read_buf, 0, sizeof(struct server_package));
 
 	FILE * fp;
-	if((fp = fopen("output.dat", "w+")) == NULL) {
+	if((fp = fopen("output1.dat", "w+")) == NULL) {
 		fprintf(stderr,"Fail: cannot open target file!\n");
 	}
 	while((ret = read(sock, read_buf, sizeof(struct server_package))) > 0){ 
@@ -77,6 +78,52 @@ void unpackage_file(int sock){
 		}
 	}
 	fclose(fp);
+}
+
+void unpackage_file2(int sock){
+	int ret; 
+	struct server_package * read_buf = malloc(sizeof(struct server_package));
+	memset(read_buf, 0, sizeof(struct server_package));
+
+	FILE * fp;
+	if((fp = fopen("output2.dat", "w+")) == NULL) {
+		fprintf(stderr,"Fail: cannot open target file!\n");
+	}
+	while((ret = read(sock, read_buf, sizeof(struct server_package))) > 0){ 
+		if (strcmp(read_buf->cmd, CMD_DOWNLOAD) == 0) {
+			fprintf(fp, "%s", read_buf->file_content);
+			fflush(fp); 	
+			if(read_buf->content_is_end == 1) break;
+		}
+	}
+	fclose(fp);
+}
+
+void combine_file(void) {
+		FILE * f1;
+	if((f1 = fopen("output1.dat","a")) == NULL){
+		fprintf(stderr, "error!");
+		exit(0);
+	}
+	
+	FILE * f2;
+	if((f2 = fopen("output2.dat","r")) == NULL){
+		fprintf(stderr, "error!");
+		exit(0);
+	}
+	int ret;
+	char buf[1];
+	memset(buf, 0x00, sizeof(char) * 1);
+
+	while((ret = fread(buf, 1, sizeof(char) * 1,f2)) >0 ){
+		buf[ret] = 0x00;
+		fwrite(buf, 1, sizeof(char) * 1,f1);
+		memset(buf, 0x00, sizeof(char) * 1);
+	}
+	
+	fclose(f1);
+	fclose(f2);
+
 }
 
 int main(int argc, char const *argv[])
@@ -125,8 +172,17 @@ int main(int argc, char const *argv[])
 			if (read_buf->have_file_flag == 1) {
 				// download file
 				decide_chrunk();
-				client_download_file(client_sock, target_file, 0, read_buf->file_length-1);
+				
+				client_download_file(client_sock, target_file, 0, 2000);
+
 				unpackage_file(client_sock);
+
+				client_download_file(client_sock, target_file, 2001, 4008);
+				
+				unpackage_file2(client_sock);
+
+				combine_file();
+
 			}else{
 				socket_exit(client_sock);
 				close(client_sock);

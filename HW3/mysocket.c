@@ -56,7 +56,7 @@ void client_check_file(int conn_sock , const char * filename) {
     free(write_buf);
 }
 
-void client_download_file(int conn_sock, const char * filename, int start, int end) {
+void client_download_file(int conn_sock, const char * filename, long start, long end) {
     struct client_package * write_buf = malloc(sizeof(struct client_package));
     memset(write_buf, 0, sizeof(struct client_package));
     strcpy(write_buf->cmd, CMD_DOWNLOAD);
@@ -82,7 +82,7 @@ void server_response_check_file(int conn_sock, const char * filename) {
     free(write_buf);
 }
 
-void server_upload_file(int conn_sock, const char * filename, int start, int end) {
+void server_upload_file(int conn_sock, const char * filename, long start, long end) {
     struct server_package * write_buf = malloc(sizeof(struct server_package));
     memset(write_buf, 0, sizeof(struct server_package));
     strcpy(write_buf->cmd, CMD_DOWNLOAD);
@@ -93,7 +93,7 @@ void server_upload_file(int conn_sock, const char * filename, int start, int end
 	} 
 
 	fseek(fp, start, SEEK_SET);
-	int cur = start;
+	long cur = start;
 	char data[BUFFER_SIZE];
 	memset(data, 0x00, sizeof(char)*BUFFER_SIZE);
 

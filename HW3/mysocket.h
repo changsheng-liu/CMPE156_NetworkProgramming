@@ -13,18 +13,18 @@
 #define CMD_CHECKFILE "CHK"
 
 struct client_package{
+    long start_prt;
+    long end_prt;
     char cmd[COMMAND_SIZE];
-    int start_prt;
-    int end_prt;
     char file_name[BUFFER_SIZE];
 };
 
 struct server_package{
-    char cmd[COMMAND_SIZE];
-    int have_file_flag;
     long file_length;
+    int have_file_flag;
     int content_length;
     int content_is_end;
+    char cmd[COMMAND_SIZE];
     char file_content[BUFFER_SIZE];
 };
 
@@ -35,10 +35,9 @@ int server_socket_accept(int lis_sock, struct sockaddr * addr, const char * fail
 void client_socket_connect(int cli_sock, struct sockaddr * addr, const char * failMessage);
 
 void client_check_file(int conn_sock, const char * filename);
-void client_download_file(int conn_sock, const char * filename, int start, int end);
-
+void client_download_file(int conn_sock, const char * filename, long start, long end);
 void server_response_check_file(int conn_sock, const char * filename);
-void server_upload_file(int conn_sock, const char * filename, int start, int end);
+void server_upload_file(int conn_sock, const char * filename, long start, long end);
 
 void socket_exit(int conn_sock);
  #endif
