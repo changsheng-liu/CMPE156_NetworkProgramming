@@ -6,7 +6,7 @@ server: util socket
 
 client: util socket
 	gcc -c client.c -o client.o
-	gcc util.o mysocket.o client.o -o client
+	gcc util.o mysocket.o client.o -o client -lpthread
 
 util: util.c
 	gcc -c util.c -o util.o

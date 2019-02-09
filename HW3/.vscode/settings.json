@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "mysocket.h": "c",
-        "signal.h": "c"
+        "signal.h": "c",
+        "pthread.h": "c"
     }
 }

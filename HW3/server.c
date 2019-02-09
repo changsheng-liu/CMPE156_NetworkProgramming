@@ -15,7 +15,7 @@ int main(int argc, char const *argv[]) {
         failHandler("Please use legal port number!");
     }
     //build server socket and listen socket
-    const char * server_build_fail_message = "Sever Fail: Cannot establish socket connection. End of server.";
+    const char * server_build_fail_message = "Server Fail: Cannot establish socket connection. End of server.";
     
     int lis_sock = init_socket(server_build_fail_message);;
 
@@ -47,6 +47,7 @@ int main(int argc, char const *argv[]) {
 
         close(server_sock);
     }
-    
+    free(read_buf);
+    free(write_buf);
     return 0;
 }
