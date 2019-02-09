@@ -4,10 +4,8 @@
 #include <string.h>
 #include "util.h"
 #include "mysocket.h"
-#include "myfile.h"
 
-int main(int argc, char const *argv[])
-{
+int main(int argc, char const *argv[]) {
     // check param is legal
     if(argc != 2) {
         failHandler("Please use server by correct input!");
@@ -27,7 +25,8 @@ int main(int argc, char const *argv[])
     
     int server_sock;
     int ret;
-    struct client_package * read_buf = malloc(sizeof(struct client_package));;
+    struct client_package * read_buf = malloc(sizeof(struct client_package));
+	struct server_package * write_buf = malloc(sizeof(struct server_package));
 
     while(1) {
         server_sock = server_socket_accept(lis_sock, (struct sockaddr *) &addr, server_build_fail_message);
@@ -38,9 +37,9 @@ int main(int argc, char const *argv[])
             if (strcmp(cmd, CMD_BYE) == 0) { //close command
                 break;
             }else if (strcmp(cmd, CMD_CHECKFILE) == 0) {  //check command if file is exist
-                server_response_check_file(server_sock, read_buf->file_name);
+                server_response_check_file(server_sock, read_buf->file_name, write_buf);
             }else if (strcmp(cmd, CMD_DOWNLOAD) == 0) { // download command to download specific part
-                server_upload_file(server_sock, read_buf->file_name, read_buf->start_prt, read_buf->end_prt);
+                server_upload_file(server_sock, read_buf->file_name, read_buf->start_prt, read_buf->end_prt,write_buf);
             }
             
             memset(read_buf,0,sizeof(struct client_package));
@@ -49,7 +48,5 @@ int main(int argc, char const *argv[])
         close(server_sock);
     }
     
-    free(read_buf);
-
     return 0;
 }

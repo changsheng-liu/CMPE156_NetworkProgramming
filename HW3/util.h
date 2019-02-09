@@ -7,6 +7,7 @@ int isValidPort(const char * );
 int hasFile(const char * );
 int isNumber(const char *);
 void failHandler(const char * );
+long file_length(const char * filename);
 
 #endif
 

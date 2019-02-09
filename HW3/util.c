@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <regex.h>
+#include <sys/stat.h>
 #include "util.h"
 
 int isValidIP(const char * ipaddr) {
@@ -43,4 +44,19 @@ int isNumber(const char * connectnum) {
     int p = atoi(connectnum);
     if(p == 0) return p;
     return 1;
+}
+
+long file_length(const char * filename) {
+    struct stat statbuf;
+    stat(filename,&statbuf);
+    long size = statbuf.st_size;
+    return size;
+
+    // other choice 
+    // FILE *fp=fopen(filename,"r");
+    // if(!fp) return -1;
+    // fseek(fp,0L,SEEK_END);
+    // int size=ftell(fp);
+    // fclose(fp);
+    // return size;
 }

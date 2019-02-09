@@ -1,15 +1,12 @@
-all: server client
+all: client server 
 
-server: util socket file
+server: util socket
 	gcc -c server.c -o server.o
-	gcc util.o mysocket.o myfile.o server.o -o server
+	gcc util.o mysocket.o server.o -o server
 
-client: util socket file
+client: util socket
 	gcc -c client.c -o client.o
-	gcc util.o mysocket.o myfile.o client.o -o client
-
-file: myfile.c
-	gcc -c myfile.c -o myfile.o
+	gcc util.o mysocket.o client.o -o client
 
 util: util.c
 	gcc -c util.c -o util.o

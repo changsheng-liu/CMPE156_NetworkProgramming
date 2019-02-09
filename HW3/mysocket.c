@@ -3,7 +3,6 @@
 #include "stdlib.h"
 #include "util.h"
 #include "mysocket.h"
-#include "myfile.h"
 
 int init_socket(const char * failMessage){
     int tcpsocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -41,37 +40,33 @@ int server_socket_accept(int lis_sock, struct sockaddr * addr, const char * fail
     return server_sock;
 }
 
-void client_socket_connect(int cli_sock ,struct sockaddr * addr, const char * failMessage) {
+int client_socket_connect(int cli_sock ,struct sockaddr * addr, const char * failMessage) {
     if(connect(cli_sock, addr, sizeof(*addr)) < 0){
-        failHandler(failMessage);
+        return -1;
     }
+    return 1;
 }
 
-void client_check_file(int conn_sock , const char * filename) {
-    struct client_package * write_buf = malloc(sizeof(struct client_package));
+void client_check_file(int conn_sock , const char * filename, struct client_package * write_buf) {
     memset(write_buf, 0, sizeof(struct client_package));
     strcpy(write_buf->cmd, CMD_CHECKFILE);
     strcpy(write_buf->file_name,filename);
     write(conn_sock,write_buf,sizeof(struct client_package));
-    free(write_buf);
 }
 
-void client_download_file(int conn_sock, const char * filename, long start, long end) {
-    struct client_package * write_buf = malloc(sizeof(struct client_package));
+void client_request_file(int conn_sock, const char * filename, long start, long end, struct client_package * write_buf) {
     memset(write_buf, 0, sizeof(struct client_package));
     strcpy(write_buf->cmd, CMD_DOWNLOAD);
     strcpy(write_buf->file_name,filename);
     write_buf->start_prt = start;
     write_buf->end_prt = end;
     write(conn_sock,write_buf,sizeof(struct client_package));
-    free(write_buf);
 }
 
-void server_response_check_file(int conn_sock, const char * filename) {
-    struct server_package * write_buf = malloc(sizeof(struct server_package));
+void server_response_check_file(int conn_sock, const char * filename, struct server_package * write_buf) {
     memset(write_buf, 0, sizeof(struct server_package));
     strcpy(write_buf->cmd, CMD_CHECKFILE);
-       
+
     if (hasFile(filename)) {
         write_buf->have_file_flag = 1;
         write_buf->file_length = file_length(filename);
@@ -79,11 +74,9 @@ void server_response_check_file(int conn_sock, const char * filename) {
         write_buf->have_file_flag = -1;
     }
     write(conn_sock,write_buf,sizeof(struct server_package));
-    free(write_buf);
 }
 
-void server_upload_file(int conn_sock, const char * filename, long start, long end) {
-    struct server_package * write_buf = malloc(sizeof(struct server_package));
+void server_upload_file(int conn_sock, const char * filename, long start, long end, struct server_package * write_buf) {
     memset(write_buf, 0, sizeof(struct server_package));
     strcpy(write_buf->cmd, CMD_DOWNLOAD);
     
@@ -116,13 +109,10 @@ void server_upload_file(int conn_sock, const char * filename, long start, long e
     write(conn_sock,write_buf, sizeof(struct server_package));
 
 	fclose(fp);
-    free(write_buf);
 }
 
-void socket_exit(int conn_sock) {
-    struct client_package * write_buf = malloc(sizeof(struct client_package));
+void socket_exit(int conn_sock, struct client_package * write_buf) {
     memset(write_buf, 0, sizeof(struct client_package));
     strcpy(write_buf->cmd, CMD_BYE);
     write(conn_sock,write_buf,sizeof(struct client_package));
-    free(write_buf);
 }

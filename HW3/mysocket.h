@@ -32,12 +32,12 @@ int init_socket(const char * failMessage);
 struct sockaddr_in init_address(in_addr_t address, const int port);
 void server_socket_bind_listen(int lis_sock, struct sockaddr * addr, int max_clients, const char * failMessage);
 int server_socket_accept(int lis_sock, struct sockaddr * addr, const char * failMessage);
-void client_socket_connect(int cli_sock, struct sockaddr * addr, const char * failMessage);
+int client_socket_connect(int cli_sock, struct sockaddr * addr, const char * failMessage);
 
-void client_check_file(int conn_sock, const char * filename);
-void client_download_file(int conn_sock, const char * filename, long start, long end);
-void server_response_check_file(int conn_sock, const char * filename);
-void server_upload_file(int conn_sock, const char * filename, long start, long end);
+void client_check_file(int conn_sock , const char * filename, struct client_package * write_buf);
+void client_request_file(int conn_sock, const char * filename, long start, long end, struct client_package * write_buf);
+void server_response_check_file(int conn_sock, const char * filename, struct server_package * write_buf);
+void server_upload_file(int conn_sock, const char * filename, long start, long end, struct server_package * write_buf);
 
-void socket_exit(int conn_sock);
+void socket_exit(int conn_sock, struct client_package * write_buf);
  #endif
