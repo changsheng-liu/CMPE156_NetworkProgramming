@@ -1,18 +1,18 @@
 all: client server 
 
-server: util socket
+server: util
 	gcc -c server.c -o server.o
-	gcc util.o mysocket.o server.o -o server
+	gcc util.o server.o -o server
 
-client: util socket
+client: util
 	gcc -c client.c -o client.o
-	gcc util.o mysocket.o client.o -o client -lpthread
+	gcc util.o client.o -o client -lpthread
 
 util: util.c
 	gcc -c util.c -o util.o
 
-socket: mysocket.c
-	gcc -c mysocket.c -o mysocket.o
+# socket: mysocket.c
+# 	gcc -c mysocket.c -o mysocket.o
 
 clean: 
 	rm *.o client server *.bat

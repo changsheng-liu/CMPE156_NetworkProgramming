@@ -1,53 +1,45 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 #include <string.h>
+#include <unistd.h>
 #include "util.h"
-#include "mysocket.h"
 
-int main(int argc, char const *argv[]) {
-    // check param is legal
-    if(argc != 2) {
-        failHandler("Please use server by correct input!");
+#define BUFF_LEN 1024
+
+int main(int argc, char* argv[])
+{
+    int server_fd;
+    struct sockaddr_in ser_addr,clent_addr; 
+
+    if((server_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+        failHandler("create socket error!");
     }
 
-    if(!isValidPort(argv[1])) {
-        failHandler("Please use legal port number!");
+    bzero(&ser_addr, sizeof(ser_addr));
+    ser_addr.sin_family = AF_INET;
+    ser_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    ser_addr.sin_port = htons(atoi(argv[1]));
+
+    if((bind(server_fd, (struct sockaddr*)&ser_addr, sizeof(ser_addr))) < 0) {
+        failHandler("bind socket error!");
     }
-    //build server socket and listen socket
-    const char * server_build_fail_message = "Server Fail: Cannot establish socket connection. End of server.";
-    
-    int lis_sock = init_socket(server_build_fail_message);;
 
-    struct sockaddr_in addr = init_address(INADDR_ANY, atoi(argv[1]));
-
-    server_socket_bind_listen(lis_sock, (struct sockaddr *) &addr, 1, server_build_fail_message);
-    
-    int server_sock;
-    int ret;
-    struct client_package * read_buf = malloc(sizeof(struct client_package));
-	struct server_package * write_buf = malloc(sizeof(struct server_package));
-
-    while(1) {
-        server_sock = server_socket_accept(lis_sock, (struct sockaddr *) &addr, server_build_fail_message);
-        
-        memset(read_buf, 0, sizeof(struct client_package));
-        while((ret = read(server_sock, read_buf, sizeof(struct client_package))) > 0){
-            const char * cmd = read_buf->cmd;
-            if (strcmp(cmd, CMD_BYE) == 0) { //close command
-                break;
-            }else if (strcmp(cmd, CMD_CHECKFILE) == 0) {  //check command if file is exist
-                server_response_check_file(server_sock, read_buf->file_name, write_buf);
-            }else if (strcmp(cmd, CMD_DOWNLOAD) == 0) { // download command to download specific part
-                server_upload_file(server_sock, read_buf->file_name, read_buf->start_prt, read_buf->end_prt,write_buf);
-            }
-            
-            memset(read_buf,0,sizeof(struct client_package));
+    char buf[BUFF_LEN];  
+    socklen_t len;
+    struct sockaddr_in ;
+    for( ; ; ) {
+        bzero(buf, BUFF_LEN);
+        len = sizeof(clent_addr);
+        if(recvfrom(server_fd, buf, BUFF_LEN, 0, (struct sockaddr*)&clent_addr, &len) < 0) {
+            failHandler("receive error!");
         }
-
-        close(server_sock);
+        fputs(buf, stdout);
+        sendto(server_fd, buf, BUFF_LEN, 0, (struct sockaddr*)&clent_addr, len);
     }
-    free(read_buf);
-    free(write_buf);
+
+    close(server_fd);
     return 0;
 }
