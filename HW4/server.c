@@ -9,8 +9,13 @@
 
 #define BUFF_LEN 1024
 
+void checkParam(int argc, char* argv[]);
+
 int main(int argc, char* argv[])
 {
+    checkParam(argc, argv);
+
+// udp basic
     int server_fd;
     struct sockaddr_in ser_addr,clent_addr; 
 
@@ -36,10 +41,20 @@ int main(int argc, char* argv[])
         if(recvfrom(server_fd, buf, BUFF_LEN, 0, (struct sockaddr*)&clent_addr, &len) < 0) {
             failHandler("receive error!");
         }
-        fputs(buf, stdout);
+        
         sendto(server_fd, buf, BUFF_LEN, 0, (struct sockaddr*)&clent_addr, len);
     }
 
     close(server_fd);
     return 0;
+}
+
+void checkParam(int argc, char* argv[]) {
+    if(argc != 2) {
+        failHandler("Please use server by correct input! usage: ./server <portnumber>");
+    }
+
+    if(!isValidPort(argv[1])) {
+        failHandler("Please use legal port number!");
+    }
 }
