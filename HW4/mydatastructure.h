@@ -2,20 +2,17 @@
 #ifndef _MYDS_H_
 #define _MYDS_H_
 
+#include <netinet/in.h>
+#include <arpa/inet.h>
 typedef struct{
-	int port;
-	char IP[16];
-}server_info_t;
-
-typedef struct{
-	server_info_t ** arrayList;
+	struct sockaddr_in ** arrayList;
 	int size;
 	int occupied;
 }server_list_t;
 
 server_list_t * initServerListArray();
-void addServerItem(server_list_t * a, server_info_t * n);
-server_info_t * getServerItem(server_list_t * a, int idx);
+void addServerItem(server_list_t * a, struct sockaddr_in * n);
+struct sockaddr_in * getServerItem(server_list_t * a, int idx);
 void removeServerItem(server_list_t * a, int idx);
 void deallocServerList(server_list_t * a);
 

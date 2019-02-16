@@ -9,21 +9,21 @@ server_list_t * initServerListArray() {
 	server_list_t * arr = malloc(sizeof(server_list_t));
 	arr->size = ADD_SIZE;
 	arr->occupied = 0;
-	arr->arrayList = calloc(ADD_SIZE,sizeof(server_info_t *));
+	arr->arrayList = calloc(ADD_SIZE,sizeof(struct sockaddr_in *));
 	return arr;
 }
 
-void addServerItem(server_list_t * a, server_info_t * n) {
+void addServerItem(server_list_t * a, struct sockaddr_in * n) {
 	if (a->size == a->occupied) {
         int n_size = ADD_SIZE + a->size;
-		a->arrayList = realloc(a->arrayList, n_size * sizeof(server_info_t *));
+		a->arrayList = realloc(a->arrayList, n_size * sizeof(struct sockaddr_in *));
 		a->size = n_size;
 	}
 	a->arrayList[a->occupied] = n;
 	a->occupied++;
 }
 
-server_info_t * getServerItem(server_list_t * a, int idx) {
+struct sockaddr_in * getServerItem(server_list_t * a, int idx) {
 	if (idx >= a->occupied) {
 		return NULL;
 	}
@@ -43,7 +43,7 @@ void removeServerItem(server_list_t * a, int idx) {
 
 void deallocServerList(server_list_t * a) {
 	int t;
-	server_info_t * n;
+	struct sockaddr_in * n;
 	for(t = 0; t < a->occupied; t++) {
 		n = getServerItem(a, t);
 		free(n);

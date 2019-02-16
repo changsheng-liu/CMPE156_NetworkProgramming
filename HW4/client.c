@@ -23,9 +23,13 @@ int main(int argc, char* argv[])
     server_info_list = process_server_info(argv[1]);
 	
 	//***********************
-	//test for info, need remove 
+	// test for info, need remove 
+	// char str[30];
 	// for(int i = 0; i < server_info_list->occupied; i++) {
-	// 	printf("port : %d \n", getServerItem(server_info_list, i)->port);
+	// 	server_info_t * item = getServerItem(server_info_list, i);
+	// 	struct sockaddr_in * addr = item->addr;
+	// 	printf("port : %d \n", (int)ntohs(addr->sin_port));
+	// 	printf("ip : %s \n",inet_ntop(AF_INET,&addr->sin_addr ,str, INET_ADDRSTRLEN));
 	// }
 	//***********************
 
@@ -36,19 +40,12 @@ int main(int argc, char* argv[])
         failHandler("create socket error!");
     }
 
-    struct sockaddr_in ser_addr;
-    server_info_t * item = getServerItem(server_info_list, 4);
-    bzero(&ser_addr, sizeof(ser_addr));
-    ser_addr.sin_family = AF_INET;
-    ser_addr.sin_port = htons(item->port);  
-    if(inet_aton(item->IP, &ser_addr.sin_addr)<=0) { 
-        failHandler("bind socket error!");
-    } 
-    socklen_t len = sizeof(ser_addr);
+    struct sockaddr_in * addr = getServerItem(server_info_list, 0);
+    socklen_t len = sizeof(*addr);
     char write_buf[BUFFER_SIZE];
     bzero(write_buf, BUFFER_SIZE);
     sprintf(write_buf, "%s %s", CMD_CHECKFILE, target_file);
-    sendto(client_fd, write_buf, BUFFER_SIZE, 0, (struct sockaddr*)&ser_addr, len);
+    sendto(client_fd, write_buf, BUFFER_SIZE, 0, (struct sockaddr*)addr, len);
 
     server_response_t * read_buf = malloc(sizeof(server_response_t));
     memset(read_buf, 0, sizeof(server_response_t));
@@ -58,7 +55,7 @@ int main(int argc, char* argv[])
             printf("Find file! Downloading...\n");
             bzero(write_buf, BUFFER_SIZE);
             sprintf(write_buf, "%s %s %d %ld", CMD_DOWNLOAD, target_file, 0, read_buf->file_length);
-            sendto(client_fd, write_buf, BUFFER_SIZE, 0, (struct sockaddr*)&ser_addr, len);
+            sendto(client_fd, write_buf, BUFFER_SIZE, 0, (struct sockaddr*)addr, len);
 
             memset(read_buf, 0, sizeof(server_response_t));
             
@@ -116,13 +113,19 @@ server_list_t * process_server_info(const char * info_list_file) {
 	server_list_t * inner_server_info_list = initServerListArray();
 	while (!feof(fp) && !ferror(fp)) {
 		fscanf(fp, "%s%s", ip, port);
-		server_info_t * info = malloc(sizeof(server_info_t));
 		if(strcmp(pre_port, port) == 0 && strcmp(pre_ip, ip) == 0) {continue;}
-		strcpy(info->IP, ip);
-		info->port = atoi(port);
-		addServerItem(inner_server_info_list, info);
 		strcpy(pre_ip, ip);
 		strcpy(pre_port, port);
+
+		struct sockaddr_in *ser_addr = malloc(sizeof(struct sockaddr_in));
+		// bzero(ser_addr, sizeof(ser_addr));
+		memset(ser_addr, 0, sizeof(struct sockaddr_in));
+		ser_addr->sin_family = AF_INET;
+		ser_addr->sin_port = htons(atoi(port));  
+		if(inet_aton(ip, &ser_addr->sin_addr)<=0) { 
+			failHandler("bind socket error!");
+		} 
+		addServerItem(inner_server_info_list, ser_addr);
 	}
 	fclose(fp);
 	return inner_server_info_list;
