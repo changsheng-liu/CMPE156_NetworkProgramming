@@ -6,8 +6,7 @@
 #include <string.h>
 #include <unistd.h>
 #include "util.h"
-
-#define BUFF_LEN 1024
+#include "mysocket.h"
 
 void checkParam(int argc, char* argv[]);
 
@@ -32,20 +31,67 @@ int main(int argc, char* argv[])
         failHandler("bind socket error!");
     }
 
-    char buf[BUFF_LEN];  
-    socklen_t len;
-    struct sockaddr_in ;
+    char read_buf[BUFFER_SIZE];
+    server_response_t * write_buf = malloc(sizeof(server_response_t));
+    socklen_t len = sizeof(clent_addr);;
+    char * cmd;
+    char * target_file;
     for( ; ; ) {
-        bzero(buf, BUFF_LEN);
-        len = sizeof(clent_addr);
-        if(recvfrom(server_fd, buf, BUFF_LEN, 0, (struct sockaddr*)&clent_addr, &len) < 0) {
-            failHandler("receive error!");
-        }
-        
-        sendto(server_fd, buf, BUFF_LEN, 0, (struct sockaddr*)&clent_addr, len);
-    }
+        memset(write_buf, 0, sizeof(server_response_t));
+        bzero(read_buf, BUFFER_SIZE);
 
-    close(server_fd);
+        if(recvfrom(server_fd, read_buf, BUFFER_SIZE, 0, (struct sockaddr*)&clent_addr, &len) < 0) {
+            failHandler("receive error!");//need modify
+        }
+        printf("%s\n", read_buf);
+        cmd = strtok(read_buf, " ");
+        if(strcmp(cmd, CMD_DOWNLOAD) == 0) {
+            target_file = strtok(NULL, " ");
+            long start = atol(strtok(NULL, " "));
+            long end = atol(strtok(NULL, " "));
+
+            strcpy(write_buf->cmd, CMD_DOWNLOAD);
+            FILE *fp; 
+            if((fp = fopen(target_file,"r")) == NULL) { 
+                failHandler("open file error!");
+            }
+
+            fseek(fp, start, SEEK_SET);
+            long cur = start;
+            char data[BUFFER_SIZE];
+            memset(data, 0x00, sizeof(char)*BUFFER_SIZE);
+
+            int rt;
+            while(end - cur > BUFFER_SIZE-1) {
+                rt = fread(data,1,BUFFER_SIZE-1,  fp);
+                data[rt] = 0x00;
+                strcpy(write_buf->file_content, data);
+                write_buf->content_is_end = -1;
+                write_buf->content_length = rt;
+                cur = cur + rt;
+                sendto(server_fd, write_buf, sizeof(server_response_t), 0, (struct sockaddr*)&clent_addr, len);
+                memset(data, 0x00, sizeof(char)*BUFFER_SIZE);
+            }
+            rt = fread(data, 1, (end-cur+1), fp);
+            data[rt] = 0x00;
+            strcpy(write_buf->file_content, data);
+            write_buf->content_is_end = 1;
+            write_buf->content_length = rt;
+            sendto(server_fd, write_buf, sizeof(server_response_t), 0, (struct sockaddr*)&clent_addr, len);
+            fclose(fp);
+
+        }else if(strcmp(cmd, CMD_CHECKFILE) == 0) {
+            target_file = strtok(NULL, " ");
+            strcpy(write_buf->cmd, CMD_CHECKFILE);
+            if (hasFile(target_file)) {
+                write_buf->have_file_flag = 1;
+                write_buf->file_length = file_length(target_file);
+            }else {
+                write_buf->have_file_flag = -1;
+            }
+            sendto(server_fd, write_buf, sizeof(server_response_t), 0, (struct sockaddr*)&clent_addr, len);
+        }
+    }
     return 0;
 }
 

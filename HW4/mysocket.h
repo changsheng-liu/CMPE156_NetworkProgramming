@@ -2,30 +2,24 @@
 #ifndef _MYSOCK_H_
 #define _MYSOCK_H_
 
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <stdio.h>
-
 #define BUFFER_SIZE     1024
 #define COMMAND_SIZE 4
-#define CMD_BYE "BYE"
-#define CMD_DOWNLOAD "DWN"
+
+//protocol define 
+//download command: "DWN <filename> <startbyteposition> <endbyteposition>"
+#define CMD_DOWNLOAD "DWN" 
+//check file command: "CHK <filename>"
 #define CMD_CHECKFILE "CHK"
+//acknowledge command: "ACK <integer>"
+// #define CMD_ACK "ACK"
 
-struct client_package{
-    long start_prt;
-    long end_prt;
-    char cmd[COMMAND_SIZE];
-    char file_name[BUFFER_SIZE];
-};
-
-struct server_package{
+typedef struct{
     long file_length;
     int have_file_flag;
     int content_length;
     int content_is_end;
     char cmd[COMMAND_SIZE];
     char file_content[BUFFER_SIZE];
-};
+}server_response_t;
 
  #endif
