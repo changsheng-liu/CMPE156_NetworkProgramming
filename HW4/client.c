@@ -76,6 +76,7 @@ int main(int argc, char* argv[])
             printf("Find file! Downloading...\n");
 			has_file_flag = 1;
 			chunk_jobs = createJobsList(chunk_num, target_file, read_buf->file_length);
+			done_jobs = initJobArray(chunk_num);
 			pthread_t * threads = createWorkerList(chunk_num > MAX_WORKER ? chunk_num : MAX_WORKER);
 			int i;
 			for(i = 0; i < chunk_num; i++) {
