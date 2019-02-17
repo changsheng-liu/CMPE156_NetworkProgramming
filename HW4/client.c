@@ -93,7 +93,7 @@ int main(int argc, char* argv[]) {
 	free(read_buf);
 	if(has_file_flag > 0) {
 		deallocJobList(done_jobs);
-		deallocJobList(chunk_jobs);
+		free(chunk_jobs);
 		free(threads);
 	}
     return 0;
@@ -214,14 +214,13 @@ void * thread_download(void * param) {
 		job_item_t * job = popJobItem(chunk_jobs);
 		pthread_mutex_unlock(&chunk_job_lock);
 
-		printf("file start %ld, end %ld\n", job->file_start, job->file_end);
-
 		//send download command
 		memset(read_buf, 0, sizeof(server_response_t));
 		sprintf(write_buf, "%s %s %ld %ld", CMD_DOWNLOAD, job->file_name, job->file_start, job->file_end);
     	sendto(client_fd, write_buf, BUFFER_SIZE, 0, (struct sockaddr*)addr, len);
 
 		//download and write into temp.x file
+		memset(name, 0, 15 * sizeof(char));
 		sprintf(name, "temp.%d", job->job_id);
 		if((fp = fopen(name, "w+")) == NULL) {
 			failHandler("Fail open file!");
@@ -240,7 +239,7 @@ void * thread_download(void * param) {
 		addJobItem(done_jobs, job);
 		pthread_mutex_unlock(&done_job_lock);
 	}
-
+	free(read_buf);
 	close(client_fd);
 
 	//release port resource

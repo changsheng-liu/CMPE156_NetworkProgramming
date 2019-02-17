@@ -7,9 +7,11 @@
 
 server_list_t * initServerListArray() {
 	server_list_t * arr = malloc(sizeof(server_list_t));
+	memset(arr, 0, sizeof(server_list_t));
 	arr->size = ADD_SIZE;
 	arr->occupied = 0;
 	arr->arrayList = calloc(ADD_SIZE,sizeof(struct sockaddr_in *));
+	memset(arr->arrayList, 0, ADD_SIZE * sizeof(struct sockaddr_in *));
 	return arr;
 }
 
@@ -57,7 +59,7 @@ job_list_t * initJobArray(int job_size) {
 	arr->size = job_size;
 	arr->occupied = 0;
 	arr->job_array = calloc(job_size,sizeof(job_item_t *));
-	// memset(arr->job_array, 0, job_size * sizeof(job_item_t *));
+	memset(arr->job_array, 0, job_size * sizeof(job_item_t *));
 	return arr;
 }
 
