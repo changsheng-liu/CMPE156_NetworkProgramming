@@ -223,7 +223,7 @@ void * thread_download(void * param) {
 		if((fp = fopen(name, "w+")) == NULL) {
 			failHandler("Fail open file!");
 		}
-		while((ret = read(client_fd, read_buf, sizeof(server_response_t))) > 0){ 
+		while((ret = recvfrom(client_fd, read_buf, sizeof(server_response_t), 0, NULL, NULL)) > 0){ 
 			if (strcmp(read_buf->cmd, CMD_DOWNLOAD) == 0) {
 				fprintf(fp, "%s", read_buf->file_content);
 				fflush(fp); 	
