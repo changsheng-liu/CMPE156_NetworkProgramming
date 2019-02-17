@@ -6,14 +6,30 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <pthread.h>
 #include "util.h"
 #include "mydatastructure.h"
 #include "mysocket.h"
 
+#define MAX_WORKER 100
+
+job_list_t * done_jobs;
+pthread_mutex_t done_job_lock = PTHREAD_MUTEX_INITIALIZER;
+
+job_list_t * chunk_jobs;
+pthread_mutex_t chunk_job_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t job_available = PTHREAD_COND_INITIALIZER;
+
 server_list_t * server_info_list;
+pthread_mutex_t server_info_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t server_available = PTHREAD_COND_INITIALIZER;
 
 void checkParam(int argc, char* argv[]);
 server_list_t * process_server_info(const char * info_list_file);
+void * thread_download(void * param);
+job_list_t * createJobsList(int job_num, const char * file_name, long total_size);
+pthread_t * createWorkerList(int worker_size);
+void combinefile(int chunk_num);
 
 int main(int argc, char* argv[])
 {
@@ -33,58 +49,53 @@ int main(int argc, char* argv[])
 	// }
 	//***********************
 
-	//udp basic
+	//clarify variable
     int client_fd;
+   	struct sockaddr_in * addr = getServerItem(server_info_list, 0);
+    socklen_t len = sizeof(*addr);
+    char write_buf[BUFFER_SIZE];
+    server_response_t * read_buf = malloc(sizeof(server_response_t));
+	pthread_t * threads;
 
+	//memory clear / init 
     if((client_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         failHandler("create socket error!");
     }
+	bzero(write_buf, BUFFER_SIZE);
+	memset(read_buf, 0, sizeof(server_response_t));
 
-    struct sockaddr_in * addr = getServerItem(server_info_list, 0);
-    socklen_t len = sizeof(*addr);
-    char write_buf[BUFFER_SIZE];
-    bzero(write_buf, BUFFER_SIZE);
+	//start query file 
     sprintf(write_buf, "%s %s", CMD_CHECKFILE, target_file);
     sendto(client_fd, write_buf, BUFFER_SIZE, 0, (struct sockaddr*)addr, len);
-
-    server_response_t * read_buf = malloc(sizeof(server_response_t));
-    memset(read_buf, 0, sizeof(server_response_t));
     recvfrom(client_fd, read_buf, sizeof(server_response_t), 0, NULL, NULL);
+	
+	int has_file_flag = 0;
     if(strcmp(read_buf->cmd, CMD_CHECKFILE) == 0) {
         if(read_buf->have_file_flag) {
+			// file exists, download...
             printf("Find file! Downloading...\n");
-            bzero(write_buf, BUFFER_SIZE);
-            sprintf(write_buf, "%s %s %d %ld", CMD_DOWNLOAD, target_file, 0, read_buf->file_length);
-            sendto(client_fd, write_buf, BUFFER_SIZE, 0, (struct sockaddr*)addr, len);
-
-            memset(read_buf, 0, sizeof(server_response_t));
-            
-            
-            FILE * fp;
-        	char name[100]; 
-	        sprintf(name,"output.txt");
-	        // remove(name);
-	        if((fp = fopen(name, "w+")) == NULL) {
-		        failHandler("Fail open file!");
-	        }
-            int ret;
-	        while((ret = read(client_fd, read_buf, sizeof(server_response_t))) > 0){ 
-		        if (strcmp(read_buf->cmd, CMD_DOWNLOAD) == 0) {
-			        fprintf(fp, "%s", read_buf->file_content);
-			        fflush(fp); 	
-			        if(read_buf->content_is_end == 1) break;
-		        }
-	        }
-	        fclose(fp);
-        
-        
+			has_file_flag = 1;
+			chunk_jobs = createJobsList(chunk_num, target_file, read_buf->file_length);
+			pthread_t * threads = createWorkerList(chunk_num > MAX_WORKER ? chunk_num : MAX_WORKER);
+			int i;
+			for(i = 0; i < chunk_num; i++) {
+				pthread_join(threads[i], NULL);
+			}
+			combinefile(chunk_num);
         }else{
+			// file not exists, end...
             printf("No such file! Exiting...\n");
         }
     }
 
     close(client_fd);
 	deallocServerList(server_info_list);
+	free(read_buf);
+	if(has_file_flag > 0) {
+		deallocJobList(done_jobs);
+		deallocJobList(chunk_jobs);
+		free(threads);
+	}
     return 0;
 }
 
@@ -129,4 +140,141 @@ server_list_t * process_server_info(const char * info_list_file) {
 	}
 	fclose(fp);
 	return inner_server_info_list;
+}
+
+job_list_t * createJobsList(int job_num, const char * file_name, long total_size) {
+	job_list_t * jobs = initJobArray(job_num);
+	int i;
+	long single_length = total_size / job_num;
+
+	for(i = 0; i < job_num; i++) {
+		job_item_t * item = malloc(sizeof(job_item_t));
+		item->job_id = i;
+		item->file_name = file_name;
+		item->file_start = i * single_length;
+		if(i == total_size - 1){
+			item->file_end = total_size - 1;
+		}else{
+			item->file_end = (i + 1) * single_length - 1;
+		}
+		addJobItem(jobs, item);
+	}
+	return jobs;
+}
+
+pthread_t * createWorkerList(int worker_size) {
+	pthread_t *threads;
+	threads = malloc(sizeof(pthread_t) * worker_size);
+	int i;
+	for(i = 0; i < worker_size; i++) {
+		if(pthread_create(&threads[i], NULL, thread_download, NULL) != 0) {
+			failHandler("create thread fail!");
+		}
+	}
+	return threads;
+}
+
+void * thread_download(void * param) {
+	// job_item_t * job = (job_item_t *)param;
+	// if(job->file_end - job->file_start < 1) pthread_exit(NULL);
+
+	//get port resource
+	pthread_mutex_lock(&server_info_lock);
+	while (server_info_list->occupied == 0) {
+		pthread_cond_wait(&server_available, &server_info_lock);
+	}
+	struct sockaddr_in * addr = getServerItem(server_info_list, server_info_list->occupied-1);
+	removeServerItem(server_info_list, server_info_list->occupied-1);
+	pthread_mutex_unlock(&server_info_lock);
+
+	int client_fd;
+	if((client_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+        failHandler("create socket error!");
+    }
+	char write_buf[BUFFER_SIZE];
+    server_response_t * read_buf = malloc(sizeof(server_response_t));
+	FILE * fp;
+	char name[15]; 
+	int ret;
+
+	while(done_jobs->occupied != done_jobs->size) {
+		//get undone task
+		pthread_mutex_lock(&chunk_job_lock);
+		if(chunk_jobs->occupied == 0) {
+			pthread_mutex_unlock(&chunk_job_lock);
+			close(client_fd);
+			//release port resource
+			pthread_mutex_lock(&server_info_lock);
+			addServerItem(server_info_list, addr);
+			pthread_mutex_unlock(&server_info_lock);
+			pthread_cond_broadcast(&server_available);
+			pthread_exit(NULL);
+		}
+		job_item_t * job = getJobItem(chunk_jobs, chunk_jobs->occupied-1);
+		removeJobItem(chunk_jobs, chunk_jobs->occupied-1);
+		pthread_mutex_unlock(&chunk_job_lock);
+		
+		//send download command
+		memset(read_buf, 0, sizeof(server_response_t));
+		sprintf(write_buf, "%s %s %ld %ld", CMD_DOWNLOAD, job->file_name, job->file_start, job->file_end);
+
+		//download and write into temp.x file
+		sprintf(name, "temp.%d", job->job_id);
+		if((fp = fopen(name, "w+")) == NULL) {
+			failHandler("Fail open file!");
+		}
+		while((ret = read(client_fd, read_buf, sizeof(server_response_t))) > 0){ 
+			if (strcmp(read_buf->cmd, CMD_DOWNLOAD) == 0) {
+				fprintf(fp, "%s", read_buf->file_content);
+				fflush(fp); 	
+				if(read_buf->content_is_end == 1) break;
+			}
+		}
+		fclose(fp);
+
+		// record as done job
+		pthread_mutex_lock(&done_job_lock);
+		addJobItem(done_jobs, job);
+		pthread_mutex_unlock(&done_job_lock);
+	}
+
+	close(client_fd);
+
+	//release port resource
+	pthread_mutex_lock(&server_info_lock);
+	addServerItem(server_info_list, addr);
+	pthread_mutex_unlock(&server_info_lock);
+	pthread_cond_broadcast(&server_available);
+	
+	pthread_exit(NULL);
+}
+
+void combinefile(int chunk_num) {
+	int ret;
+	char buf[1];
+	memset(buf, 0x00, sizeof(char) * 1);
+	FILE * targetfd;
+	remove("./dest/result.txt");
+
+	if((targetfd = fopen("./dest/result.txt","w+")) == NULL){
+		failHandler("Fail open file!");
+	}
+	int i;
+	char fn[15];
+	FILE * fd;
+
+	for(i = 0; i < chunk_num; i++){
+		sprintf(fn, "temp.%d", i);
+		if((fd = fopen(fn,"r")) == NULL){
+			failHandler("Fail open file!");
+		}
+		while((ret = fread(buf, 1, sizeof(char) * 1,fd)) >0 ){
+			buf[ret] = 0x00;
+			fwrite(buf, 1, sizeof(char) * 1,targetfd);
+			memset(buf, 0x00, sizeof(char) * 1);
+		}
+		fclose(fd);
+		remove(fn);
+	}
+	fclose(targetfd);
 }

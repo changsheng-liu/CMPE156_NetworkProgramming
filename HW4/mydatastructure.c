@@ -50,3 +50,40 @@ void deallocServerList(server_list_t * a) {
 	}
 	free(a);
 }
+
+job_list_t * initJobArray(int job_size) {
+	job_list_t * arr = malloc(sizeof(job_list_t));
+	arr->size = job_size;
+	arr->occupied = 0;
+	arr->job_array = calloc(ADD_SIZE,sizeof(job_item_t *));
+	return arr;
+}
+
+job_item_t * getJobItem(job_list_t * a, int idx) {
+	return *(a->job_array + idx);
+}
+void addJobItem(job_list_t * a, job_item_t * item) {
+	a->job_array[a->occupied] = item;
+	a->occupied++;
+}
+
+void removeJobItem(job_list_t * a, int idx) {
+	if(idx < 0 || idx >= a->occupied) {
+		return;
+	}
+	int t;
+	for(t = idx; t < a->occupied-1; t++) {
+		a->job_array[t] = a->job_array[t+1];
+	}
+	a->occupied--;
+}
+
+void deallocJobList(job_list_t * a) {
+	int t;
+	job_item_t * n;
+	for(t = 0; t < a->size; t++) {
+		n = getJobItem(a, t);
+		free(n);
+	}
+	free(a);
+}

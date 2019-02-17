@@ -33,7 +33,7 @@ int main(int argc, char* argv[])
 
     char read_buf[BUFFER_SIZE];
     server_response_t * write_buf = malloc(sizeof(server_response_t));
-    socklen_t len = sizeof(clent_addr);;
+    socklen_t len = sizeof(clent_addr);
     char * cmd;
     char * target_file;
     for( ; ; ) {
