@@ -77,7 +77,7 @@ int main(int argc, char* argv[])
 			has_file_flag = 1;
 			chunk_jobs = createJobsList(chunk_num, target_file, read_buf->file_length);
 			done_jobs = initJobArray(chunk_num);
-			pthread_t * threads = createWorkerList(chunk_num > MAX_WORKER ? chunk_num : MAX_WORKER);
+			pthread_t * threads = createWorkerList(chunk_num > MAX_WORKER ?MAX_WORKER : chunk_num);
 			int i;
 			for(i = 0; i < chunk_num; i++) {
 				pthread_join(threads[i], NULL);
@@ -197,6 +197,7 @@ void * thread_download(void * param) {
 	FILE * fp;
 	char name[15]; 
 	int ret;
+    socklen_t len = sizeof(*addr);
 
 	while(done_jobs->occupied != done_jobs->size) {
 		//get undone task
@@ -214,10 +215,13 @@ void * thread_download(void * param) {
 		job_item_t * job = getJobItem(chunk_jobs, chunk_jobs->occupied-1);
 		removeJobItem(chunk_jobs, chunk_jobs->occupied-1);
 		pthread_mutex_unlock(&chunk_job_lock);
-		
+
+		printf("file start %ld, end %ld", job->file_start, job->file_end);
+
 		//send download command
 		memset(read_buf, 0, sizeof(server_response_t));
 		sprintf(write_buf, "%s %s %ld %ld", CMD_DOWNLOAD, job->file_name, job->file_start, job->file_end);
+    	sendto(client_fd, write_buf, BUFFER_SIZE, 0, (struct sockaddr*)addr, len);
 
 		//download and write into temp.x file
 		sprintf(name, "temp.%d", job->job_id);
