@@ -34,5 +34,8 @@ job_item_t * getJobItem(job_list_t * a, int idx);
 void addJobItem(job_list_t * a, job_item_t * item);
 void removeJobItem(job_list_t * a, int idx);
 void deallocJobList(job_list_t * a);
+void pushJobItem(job_list_t * a, job_item_t * item);
+job_item_t * popJobItem(job_list_t * a);
+job_item_t * peekJobItem(job_list_t * a);
 
 #endif

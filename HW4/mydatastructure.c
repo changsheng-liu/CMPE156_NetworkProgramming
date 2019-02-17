@@ -53,9 +53,11 @@ void deallocServerList(server_list_t * a) {
 
 job_list_t * initJobArray(int job_size) {
 	job_list_t * arr = malloc(sizeof(job_list_t));
+	memset(arr, 0,  sizeof(job_list_t));
 	arr->size = job_size;
 	arr->occupied = 0;
-	arr->job_array = calloc(ADD_SIZE,sizeof(job_item_t *));
+	arr->job_array = calloc(job_size,sizeof(job_item_t *));
+	// memset(arr->job_array, 0, job_size * sizeof(job_item_t *));
 	return arr;
 }
 
@@ -86,4 +88,20 @@ void deallocJobList(job_list_t * a) {
 		free(n);
 	}
 	free(a);
+}
+
+void pushJobItem(job_list_t * a, job_item_t * item) {
+	addJobItem(a, item);
+}
+
+job_item_t * popJobItem(job_list_t * a) {
+	if(a->occupied == 0) return NULL;
+	job_item_t * n = getJobItem(a, a->occupied-1);
+	removeJobItem(a, a->occupied-1);
+	return n;
+}
+
+job_item_t * peekJobItem(job_list_t * a) {
+	if(a->occupied == 0) return NULL;
+	return getJobItem(a, a->occupied-1);
 }

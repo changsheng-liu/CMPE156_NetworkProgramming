@@ -10,8 +10,7 @@
 
 void checkParam(int argc, char* argv[]);
 
-int main(int argc, char* argv[])
-{
+int main(int argc, char* argv[]) {
     checkParam(argc, argv);
 
 // udp basic

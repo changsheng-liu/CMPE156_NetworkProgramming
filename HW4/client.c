@@ -31,8 +31,7 @@ job_list_t * createJobsList(int job_num, const char * file_name, long total_size
 pthread_t * createWorkerList(int worker_size);
 void combinefile(int chunk_num);
 
-int main(int argc, char* argv[])
-{
+int main(int argc, char* argv[]) {
 	checkParam(argc, argv);
 	const char * target_file = argv[3];
     int chunk_num = atoi(argv[2]);
@@ -153,7 +152,7 @@ job_list_t * createJobsList(int job_num, const char * file_name, long total_size
 		item->job_id = i;
 		item->file_name = file_name;
 		item->file_start = i * single_length;
-		if(i == total_size - 1){
+		if(i == job_num - 1){
 			item->file_end = total_size - 1;
 		}else{
 			item->file_end = (i + 1) * single_length - 1;
@@ -212,11 +211,10 @@ void * thread_download(void * param) {
 			pthread_cond_broadcast(&server_available);
 			pthread_exit(NULL);
 		}
-		job_item_t * job = getJobItem(chunk_jobs, chunk_jobs->occupied-1);
-		removeJobItem(chunk_jobs, chunk_jobs->occupied-1);
+		job_item_t * job = popJobItem(chunk_jobs);
 		pthread_mutex_unlock(&chunk_job_lock);
 
-		printf("file start %ld, end %ld", job->file_start, job->file_end);
+		printf("file start %ld, end %ld\n", job->file_start, job->file_end);
 
 		//send download command
 		memset(read_buf, 0, sizeof(server_response_t));
