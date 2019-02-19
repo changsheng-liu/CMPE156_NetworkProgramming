@@ -2,7 +2,7 @@ all: client server
 
 server: util
 	gcc -c server.c -o server.o
-	gcc util.o server.o -o server
+	gcc util.o server.o -o server -lpthread
 
 client: util datatype
 	gcc -c client.c -o client.o
@@ -10,10 +10,7 @@ client: util datatype
 
 util: util.c
 	gcc -c util.c -o util.o
-
-# socket: mysocket.c
-# 	gcc -c mysocket.c -o mysocket.o
-
+	
 datatype: mydatastructure.c
 	gcc -c mydatastructure.c -o myds.o
 
