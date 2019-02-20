@@ -33,7 +33,7 @@ int query_file_exist(int client_fd, server_response_t * read_buf, char * write_b
 void * thread_download(void * param);
 job_list_t * createJobsList(int job_num, const char * file_name, long total_size);
 pthread_t * createWorkerList(int worker_size, const char * target_file);
-void combinefile(int chunk_num);
+void combinefile(int chunk_num, const char * file_name);
 int udp_download_file(int client_fd, server_response_t * read_buf, char * write_buf, struct sockaddr_in * addr, job_item_t * job);
 
 int main(int argc, char* argv[]) {
@@ -90,7 +90,8 @@ int main(int argc, char* argv[]) {
 			for(i = 0; i < chunk_num; i++) {
 				pthread_join(threads[i], NULL);
 			}
-			combinefile(chunk_num);
+			combinefile(chunk_num, target_file);
+			printf("Finish downloading file! Exiting...\n");
         }else{
 			// file not exists, end...
             printf("No such file! Exiting...\n");
@@ -143,7 +144,7 @@ server_list_t * process_server_info(const char * info_list_file) {
 		ser_addr->sin_family = AF_INET;
 		ser_addr->sin_port = htons(atoi(port));  
 		if(inet_aton(ip, &ser_addr->sin_addr)<=0) { 
-			failHandler("bind socket error!");
+			failHandler("init server port error!");
 		} 
 		addServerItem(inner_server_info_list, ser_addr);
 	}
@@ -243,7 +244,7 @@ void * thread_download(void * param) {
         failHandler("create socket error!");
     }
 	struct timeval tv;
-    tv.tv_sec = 3;
+    tv.tv_sec = 5;
     tv.tv_usec = 0;
     setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
 	
@@ -251,33 +252,6 @@ void * thread_download(void * param) {
 	bzero(write_buf, BUFFER_SIZE);
     server_response_t * read_buf = malloc(sizeof(server_response_t));
 	memset(read_buf, 0, sizeof(server_response_t));
-
-// tell server to start a new port and response the port number to begin downloading
-    sprintf(write_buf, "%s %s", CMD_START, target_file);
-	socklen_t len = sizeof(struct sockaddr_in);
-	int port;
-	for( ;; ) {
-		sendto(client_fd, write_buf, BUFFER_SIZE, 0, (struct sockaddr*)addr, len);
-		if(recvfrom(client_fd, read_buf, sizeof(server_response_t), 0, NULL, NULL) < 0) {
-			close(client_fd);
-			free(read_buf);
-			free(addr);
-			pthread_exit(NULL);
-		}
-		printf("cmd: %s, port: %d", read_buf->cmd, read_buf->download_port);
-		if (strcmp(read_buf->cmd, CMD_START) == 0) {
-			port = read_buf->download_port;
-			break;	
-		}
-	}
-	char str[20];
-	struct sockaddr_in *ser_addr = malloc(sizeof(struct sockaddr_in));
-	memset(ser_addr, 0, sizeof(struct sockaddr_in));
-	ser_addr->sin_family = AF_INET;
-	ser_addr->sin_port = htons(port);  
-	if(inet_aton(inet_ntop(AF_INET,&addr->sin_addr ,str, INET_ADDRSTRLEN), &ser_addr->sin_addr)<=0) { 
-		failHandler("bind socket error!");
-	} 
 
 	int ret;
 	while(done_jobs->occupied != done_jobs->size) {
@@ -297,7 +271,7 @@ void * thread_download(void * param) {
 		pthread_mutex_unlock(&chunk_job_lock);
 
 		//send download command
-		ret = udp_download_file(client_fd, read_buf, write_buf, ser_addr, job);
+		ret = udp_download_file(client_fd, read_buf, write_buf, addr, job);
 		
 		if(ret == 0) {
 			//end as expect, record as done job
@@ -328,7 +302,7 @@ void * thread_download(void * param) {
 	pthread_exit(NULL);
 }
 
-void combinefile(int chunk_num) {
+void combinefile(int chunk_num, const char * filename) {
 	int ret;
 	char buf[1];
 	memset(buf, 0x00, sizeof(char) * 1);
@@ -353,54 +327,40 @@ void combinefile(int chunk_num) {
 			memset(buf, 0x00, sizeof(char) * 1);
 		}
 		fclose(fd);
-		remove(fn);
+		// remove(fn);
 	}
 	fclose(targetfd);
 }
 
 int udp_download_file(int client_fd, server_response_t * read_buf, char * write_buf, struct sockaddr_in * addr, job_item_t * job) {
-	
-    struct timeval tv;
-    tv.tv_sec = 3;
-    tv.tv_usec = 0;
-    setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
-	
+
 	FILE * fp;
 	char name[15]; 
-    socklen_t len = sizeof(struct sockaddr_in);
+    socklen_t len = sizeof(* addr);
 	memset(name, 0, 15 * sizeof(char));
 	sprintf(name, "temp.%d", job->job_id);
 	if((fp = fopen(name, "w+")) == NULL) {
 		failHandler("Fail open file!");
 	}
 
-	long start = job->file_start;
-	long end = job->file_end;
-	
-	long end_temp;
-	while(start < end) {
-		if(start + BUFFER_SIZE - 1 < end) {
-			end_temp = start + BUFFER_SIZE - 1;
-		}else {
-			end_temp = end;
-		}
-		memset(write_buf, 0 , BUFFER_SIZE * sizeof(char));
-		sprintf(write_buf, "%s %s %ld %ld", CMD_DOWNLOAD, job->file_name, start, end_temp);
-		memset(read_buf, 0, sizeof(server_response_t));
-		sendto(client_fd, write_buf, BUFFER_SIZE, 0, (struct sockaddr*)addr, len);
+	memset(read_buf, 0, sizeof(server_response_t));	
+	memset(write_buf, 0 , BUFFER_SIZE * sizeof(char));
+	sprintf(write_buf, "%s %s %ld %ld", CMD_DOWNLOAD, job->file_name, job->file_start, job->file_end);
+	sendto(client_fd, write_buf, BUFFER_SIZE, 0, (struct sockaddr*)addr, len);
 
+	while(1) {
 		if(recvfrom(client_fd, read_buf, sizeof(server_response_t), 0, NULL, NULL) < 0){ 
+			fclose(fp);
 			return 1;
 		}
-		if (strcmp(read_buf->cmd, CMD_DOWNLOAD) == 0 && read_buf->download_start == start) {
+		if (strcmp(read_buf->cmd, CMD_DOWNLOAD) == 0 ) {
 			fprintf(fp, "%s", read_buf->file_content);
 			fflush(fp);
-			start = end_temp + 1; 	
+			if(strlen(read_buf->file_content) < BUFFER_SIZE) {
+				break;
+			}
 		}
 	}
-	memset(write_buf, 0 , BUFFER_SIZE * sizeof(char));
-	sprintf(write_buf, "%s", CMD_FIN);
-	sendto(client_fd, write_buf, BUFFER_SIZE, 0, (struct sockaddr*)addr, len);
 	fclose(fp);
 
 	return 0;
