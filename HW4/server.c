@@ -53,12 +53,15 @@ void * upload(void * param) {
 
     long end_temp;
     while(start < end) {
+        memset(write_buf, 0 , BUFFER_SIZE * sizeof(char));
+
         if(start + BUFFER_SIZE - 1 < end) {
             end_temp = start + BUFFER_SIZE - 1;
+            write_buf->content_is_end = 0;
         }else {
             end_temp = end;
+            write_buf->content_is_end = 1;
         }
-        memset(write_buf, 0 , BUFFER_SIZE * sizeof(char));
         strcpy(write_buf->cmd, CMD_DOWNLOAD);
         
         memset(data, 0x00, sizeof(char) * BUFFER_SIZE);
