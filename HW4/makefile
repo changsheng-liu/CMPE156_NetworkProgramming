@@ -15,5 +15,5 @@ datatype: mydatastructure.c
 	gcc -c mydatastructure.c -o myds.o
 
 clean: 
-	rm *.o client server temp.* .
+	rm *.o client server temp.* 
 	# rm ./bin/*
