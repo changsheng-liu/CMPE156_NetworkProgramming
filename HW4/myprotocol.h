@@ -13,6 +13,7 @@ typedef struct{
     long file_length;
     long sequence_num;
     int have_file_flag;
+    int content_is_end;
     char cmd[COMMAND_SIZE];
     char file_content[BUFFER_SIZE];
 }server_response_t;

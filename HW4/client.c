@@ -356,7 +356,7 @@ int udp_download_file(int client_fd, server_response_t * read_buf, char * write_
 		if (strcmp(read_buf->cmd, CMD_DOWNLOAD) == 0 ) {
 			fprintf(fp, "%s", read_buf->file_content);
 			fflush(fp);
-			if(strlen(read_buf->file_content) < BUFFER_SIZE) {
+			if(read_buf->content_is_end == 1) {
 				break;
 			}
 		}
