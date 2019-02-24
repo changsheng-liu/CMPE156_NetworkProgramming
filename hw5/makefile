@@ -8,5 +8,5 @@ util: util.c
 	gcc -c util.c -o util.o
 	
 clean: 
-	rm *.o client server temp.* 
+	rm *.o proxy 
 	# rm ./bin/*
