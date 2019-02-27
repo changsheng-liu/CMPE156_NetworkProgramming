@@ -8,14 +8,34 @@
 #include <netdb.h>
 #include "util.h"
 #include <time.h>
+#include "dynamicarray.h"
 
 #define BUFFER_SIZE 1024
 
+forbidden_sites_t * sites;
+
 void checkParam(int argc, char* argv[]);
+void proxyError(int code, const char * msg, char * httpversion, char * write_buf, int * buffer_size);
+void response403(char * httpversion, char * write_buf, int * buffer_size);
+void response501(char * httpversion, char * write_buf, int * buffer_size);
+void response405(char * httpversion, char * write_buf, int * buffer_size);
+void response400(char * httpversion, char * write_buf, int * buffer_size);
 
 int main(int argc, char *argv[])
 {
     checkParam(argc, argv);
+
+    FILE * fp;
+    char url[128];
+    if((fp = fopen(argv[2], "r+")) == NULL) {
+        failHandler("open file error!");
+    }
+    sites = initSitesArray();
+    while (!feof(fp) && !ferror(fp)) {
+        fscanf(fp, "%s", url);
+        addSiteItem(sites, url);
+    }
+    fclose(fp);
 
     int port = atoi(argv[1]);
 
@@ -59,15 +79,6 @@ int main(int argc, char *argv[])
         bzero(browser_buf, BUFFER_SIZE);
         int len = read(server_sock, browser_buf, BUFFER_SIZE);
     
-
-
-        // logging time 
-        time_t t = time(0);   
-	    char log1[25];   
-	    strftime(log1, 25, "%Y-%m-%dT%T%Z", localtime(&t));
-
-
-
         // process request 
         int ret = 0;
 
@@ -76,29 +87,59 @@ int main(int argc, char *argv[])
         char version[20];
         sscanf(browser_buf, "%s %s %s", method, request, version);
         
-        while(strlen(browser_buf) > ret){
-            if(browser_buf[ret] != '\r') {
-                ret++;
-            }else {
-                break;
-            }
-        }
+        if(strcmp(method, "GET") == 0 || strcmp(method, "HEAD") == 0) {
 
-        char log3[200];
-        strncpy(log3, browser_buf, ret);
+        }else{
+            char err[1024];
+            int i = 1024;
+            response501(version, err, &i);
+            write(server_sock, err, BUFFER_SIZE);
+            close(server_sock);
+            continue;
+        }
 
         char title[30];
         char host[1024];
-        sscanf(browser_buf + ret, "%s %s", title, host);
+
+        char log3[200];
         while(strlen(browser_buf) > ret){
-            if(browser_buf[ret] != '\r') {
-                ret++;
-            }else {
+            if(browser_buf[ret] == '\r') {
+                strncpy(log3, browser_buf, ret);
                 break;
             }
-        };
+            ret++;
+        }
+        printf("~~~~~~ reqeust: %s\n",log3);
 
+        ret = 0;
 
+        while(strlen(browser_buf) > ret){
+            if(browser_buf[ret] == '\r') {
+                sscanf(browser_buf+ret, "%s%s", title, host);
+                if(strcmp(title, "Host:") == 0){
+                    break;
+                }
+            }
+            ret++;
+        }
+
+        printf("!!!!%s\n",browser_buf);
+        //filter
+        int forbidflag = 0;
+        for(int i = 0; i < sites->occupied; i++) {
+            if(strcmp(host, getSiteItem(sites, i)) == 0) {
+                forbidflag = 1;
+                break;
+            }
+        }
+        if (forbidflag) {
+            char err[1024];
+            int i = 1024;
+            response403(version, err, &i);
+            write(server_sock, err, BUFFER_SIZE);
+            close(server_sock);
+            continue;
+        }
 
         // add forward message 
         char proxyHostName[255];
@@ -121,14 +162,18 @@ int main(int argc, char *argv[])
         sprintf(forwardstr, "Forwarded: for=%s; proto=http; by=%s\r\n\r\n", log2, proxy_ip);
 
         strcpy(&browser_buf[len-2], forwardstr);
-        // printf("\n\n%s\n", browser_buf);
-        
-
-
 
         // real forward
         struct hostent *hp;
         hp = gethostbyname(host);
+        if(hp == NULL) {
+            char err[1024];
+            int i = 1024;
+            response400(version, err, &i);
+            write(server_sock, err, BUFFER_SIZE);
+            close(server_sock);
+            continue;
+        }
         struct sockaddr_in hostaddr;
         bzero((char *)&hostaddr, sizeof(hostaddr));
         hostaddr.sin_family = AF_INET; 
@@ -158,33 +203,39 @@ int main(int argc, char *argv[])
         char lengthchar[64];
         long length = 0;
         while((l = read(host_sock, host_buffer, BUFFER_SIZE)) > 0) {
+            
             host_buffer[l] = 0x00;
+            printf("!!!!%s\n",host_buffer);
+
             if (flag) {
-                printf("@@@@@@@@@@%s\n", host_buffer);
+
+                // logging time 
+                time_t t = time(0);   
+                char log1[25];   
+                strftime(log1, 25, "%Y-%m-%dT%T%Z", localtime(&t));
+
                 flag = 0;
                 sscanf(host_buffer, "%s %s %s", protocolversion, responecode, status);
-                printf("~~~~~~~~~~~~~~~~~~~~~~~~~\n");
                 ret = 0;
                 while(strlen(host_buffer) > ret){
-                    if(host_buffer[ret] != '\r') {
-                        // printf("%c",host_buffer[ret]);
-                        ret++;
-                    }else {
-                        ret++;
-                        // printf("~~~~~~~\r");
+                    if(host_buffer[ret] == '\r') {
                         sscanf(host_buffer+ret, "%s%s", title, lengthchar);
-                        printf("~~~%s\n", title);
                         if(strcmp(title, "Content-Length:") == 0){
-                            printf("!!!!!!\n");
                             length = atol(lengthchar);
                             break;
-                        }else{
-                            ret++;
                         }
                     }
+                    ret++;
                 }
+                printf("~~~~~~time %s\n", log1);
+                printf("~~~~~~responsecode %s\n", responecode);
+                printf("~~~~~~length %ld\n", length);
 
-                printf("content length : %ld\n", length);
+                if((fp = fopen("access.log", "a")) == NULL) {
+                    failHandler("open file error!");
+                }
+                fprintf(fp, "%s %s \"%s\" %s %ld\n", log1, log2, log3,responecode, length);
+                fclose(fp);
             }
 
             write(server_sock, host_buffer, BUFFER_SIZE);
@@ -209,4 +260,33 @@ void checkParam(int argc, char* argv[]) {
     if(!hasFile(argv[2])) {
         failHandler("forbidden-sites-file does not exist!");
     }
+}
+
+void response403(char * httpversion, char * write_buf, int * buffer_size) {
+    proxyError(403, "Forbidden", httpversion, write_buf, buffer_size);
+    printf("%s\n",write_buf);
+}
+
+void response501(char * httpversion, char * write_buf, int * buffer_size) {
+    proxyError(501, "Not Implemented", httpversion, write_buf, buffer_size);
+    printf("%s\n",write_buf);
+}
+
+void response405(char * httpversion, char * write_buf, int * buffer_size) {
+    proxyError(501, "Not Implemented", httpversion, write_buf, buffer_size);
+    printf("%s\n",write_buf);
+}
+
+void response400(char * httpversion, char * write_buf, int * buffer_size) {
+    proxyError(400, "Bad Request", httpversion, write_buf, buffer_size);
+    printf("%s\n",write_buf);
+}
+
+void proxyError(int code, const char * msg, char * httpversion, char * write_buf, int * buffer_size) {
+    bzero(write_buf, *buffer_size);
+    time_t t = time(0);   
+    char date[50];
+    strftime(date, 50, "%a, %d %b %Y %T %Z", localtime(&t));
+    sprintf(write_buf, "%s %d %s\r\nContent-Type: text/html; charset=UTF-8\r\nConnection: close\r\nDate: %s\r\n\r\n<!DOCTYPE html>\n<html>\n<title>%d %s</title>\n<p>%d %s</p>\n</html>\n", httpversion, code, msg, date, code, msg, code, msg);
+    *buffer_size = strlen(write_buf);
 }
