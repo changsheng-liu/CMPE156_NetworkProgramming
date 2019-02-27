@@ -2,3 +2,4 @@
 *.txt
 proxy
 .vscode/
+access.log

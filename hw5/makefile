@@ -1,8 +1,11 @@
 all: proxy 
 
-proxy: util
+proxy: util dynamicarray
 	gcc -c proxy.c -o proxy.o
-	gcc util.o proxy.o -o proxy -lpthread
+	gcc util.o dynamicarray.o proxy.o -o proxy -lpthread
+
+dynamicarray: dynamicarray.c
+	gcc -c dynamicarray.c -o dynamicarray.o
 
 util: util.c
 	gcc -c util.c -o util.o
