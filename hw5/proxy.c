@@ -14,7 +14,11 @@
 #include <pthread.h>
 
 #define BUFFER_SIZE 1024
+#define REQUERST_SIZE 2048
+#define TEMP_SIZE 32
 forbidden_sites_t * sites;
+pthread_mutex_t filelock = PTHREAD_MUTEX_INITIALIZER;
+
 
 void proxyResponseError(int bad_sock , int code, char * httpversion);
 
@@ -36,6 +40,7 @@ void getclientIP(char * str, int sock) {
 }
 
 void generateLogTime(char * buf) {
+    pthread_mutex_lock(&filelock);
     //this function is from https://stackoverflow.com/questions/3673226/how-to-print-time-in-format-2009-08-10-181754-811
     int templen = 20;
     char temp[templen];
@@ -51,6 +56,7 @@ void generateLogTime(char * buf) {
 	tm_info = localtime(&tv.tv_sec);
 	strftime(temp, templen, "%Y-%m-%dT%T", tm_info);
     sprintf(buf,"%s.%03dZ", temp, millisec);
+    pthread_mutex_unlock(&filelock);
 }
 
 void remotelog(char * client_ip, char * firstline, char * responsecode, long responselength){
@@ -66,146 +72,200 @@ void remotelog(char * client_ip, char * firstline, char * responsecode, long res
 }
 
 void thread_proxy(int server_sock) {
+   
+    long response_length = 0;
+    int retn = 0;
+    int host_sock = -1;
+    int persistent_connect = 0;
+    int checkflag = 0;
+    int has_contentlength_flag = 0;
+    //--------------------------------------
+    struct hostent *hp;
+    char cmd1[TEMP_SIZE];
+    char cmd2[TEMP_SIZE];
+    char cmd3[TEMP_SIZE];
+    char full_buf[REQUERST_SIZE];
+    char browser_buf[BUFFER_SIZE];
 
-        // get request from client
-        char browser_buf[BUFFER_SIZE*2];
-        bzero(browser_buf, BUFFER_SIZE*2);
-        int len = read(server_sock, browser_buf, BUFFER_SIZE*2);
-    
-        // process request 
-        char method[BUFFER_SIZE];
-        bzero(method, BUFFER_SIZE);
-        char request[BUFFER_SIZE];
-        bzero(request, BUFFER_SIZE);
-        char version[BUFFER_SIZE];
-        bzero(version, BUFFER_SIZE);
-        sscanf(browser_buf, "%s %s %s", method, request, version);
-        
-        if(strcmp(method, "GET") != 0 && strcmp(method, "HEAD") != 0) {
-            proxyResponseError(server_sock, 501, version);
-            return;
-        }
+    char log_responsecode[8];
+    char log_firstline[128];
+    char remote_server_host[128];
+    char proxy_ip[32];
+    char client_ip[32];
+    char forwardstr[128];
+    //--------------------------------------
 
-        int ret = 0;
-        char firstline[BUFFER_SIZE];
-        bzero(firstline, BUFFER_SIZE);
-        while(strlen(browser_buf) > ret){
-            if(browser_buf[ret] == '\r') {
-                strncpy(firstline, browser_buf, ret);
-                break;
+    // get request from client
+    bzero(browser_buf, BUFFER_SIZE);
+    bzero(full_buf, REQUERST_SIZE);
+    while(read(server_sock, browser_buf, BUFFER_SIZE) > 0){
+        strcat(full_buf, browser_buf);
+        bzero(browser_buf, BUFFER_SIZE);
+        if(strstr(full_buf, "\r\n\r\n") == NULL) {
+            continue;
+        }else {
+            bzero(cmd1, TEMP_SIZE);
+            bzero(cmd2, TEMP_SIZE);
+            bzero(cmd3, TEMP_SIZE);
+            bzero(log_firstline, 128);
+            bzero(remote_server_host, 128);
+            persistent_connect = 0;
+            // process request 
+            sscanf(full_buf, "%s %s %s", cmd1, cmd2, cmd3);
+            if(strcmp(cmd1, "GET") != 0 && strcmp(cmd1, "HEAD") != 0) {
+                proxyResponseError(server_sock, 501, cmd3);
+                bzero(full_buf, REQUERST_SIZE); 
+                continue;
             }
-            ret++;
-        }
-
-        ret = 0;
-        int checkflag = 0;
-        char title[BUFFER_SIZE];
-        bzero(title, BUFFER_SIZE);
-        char host[BUFFER_SIZE];
-        bzero(host, BUFFER_SIZE);
-        while(strlen(browser_buf) > ret){
-            if(browser_buf[ret] == '\r') {
-                sscanf(browser_buf+ret, "%s%s", title, host);
-                if(strcmp(title, "Host:") == 0){
-                    checkflag = 1;
+            if(strcmp(cmd3, "HTTP/1.1") != 0 && strcmp(cmd3, "HTTP/1.0") != 0) {
+                proxyResponseError(server_sock, 400, cmd3);
+                bzero(full_buf, REQUERST_SIZE);
+                continue;
+            }
+            if(strcmp(cmd3, "HTTP/1.1") == 0) {
+                persistent_connect = 1;
+            }
+            retn = 0;
+            while(strlen(full_buf) > retn){
+                if(full_buf[retn] == '\r') {
+                    strncpy(log_firstline, full_buf, retn);
+                    break;
+                }
+                retn++;
+            }
+            checkflag = 0;
+            while(strlen(full_buf) > retn){
+                if(full_buf[retn] == '\r') {
+                    bzero(cmd1, TEMP_SIZE);
+                    bzero(cmd2, TEMP_SIZE);
+                    sscanf(full_buf+retn, "%s%s", cmd1, cmd2);
+                    if(strcmp(cmd1, "Host:") == 0){
+                        strcpy(remote_server_host, cmd2);
+                        checkflag = 1;
+                    }
+                    if(persistent_connect == 1 || (strcmp(cmd1, "Proxy-Connection:") == 0 && strcmp(cmd2, "Keep-Alive") == 0)){
+                        persistent_connect = 1;
+                    }
+                }
+                retn++;
+            }
+            
+            if(checkflag == 0) {
+                proxyResponseError(server_sock, 400, cmd3);
+                bzero(full_buf, REQUERST_SIZE); 
+                continue;
+            }else{
+                //filter
+                checkflag = 0;
+                for(int i = 0; i < sites->occupied; i++) {
+                    if(strcmp(remote_server_host, getSiteItem(sites, i)) == 0) {
+                        checkflag = 1;
+                        break;
+                    }
+                }
+                if (checkflag == 1) {
+                    proxyResponseError(server_sock, 403, cmd3);
+                    bzero(full_buf, REQUERST_SIZE);
                     break;
                 }
             }
-            ret++;
-        }
-
-        //filter
-        checkflag = 0;
-        for(int i = 0; i < sites->occupied; i++) {
-            if(strcmp(host, getSiteItem(sites, i)) == 0) {
-                checkflag = 1;
-                break;
+            hp = gethostbyname(remote_server_host);
+            if(hp == NULL) {
+                proxyResponseError(server_sock, 400, cmd3);
+                bzero(full_buf, REQUERST_SIZE); 
+                continue;
             }
-        }
-        if (checkflag) {
-            proxyResponseError(server_sock, 403, version);
-            return;
-        }
+            //--------------------------------------------
+            printf("!!!!!\n%s\n", full_buf);
 
-        //get local ip
-        char proxy_ip[BUFFER_SIZE];
-        bzero(proxy_ip, BUFFER_SIZE);
-        getlocalIP(proxy_ip);
+            if(host_sock < 0) {
+                //get local ip
+                bzero(proxy_ip, 32);
+                getlocalIP(proxy_ip);
+                //get client ip
+                bzero(client_ip, 32);
+                getclientIP(client_ip, server_sock);
+                //add forward message 
+                bzero(forwardstr, 128);
+                sprintf(forwardstr, "Forwarded: for=%s; proto=http; by=%s\r\n\r\n", client_ip, proxy_ip);
+                //connect remote server
 
-        //get client ip
-        char client_ip[BUFFER_SIZE];
-        bzero(client_ip, BUFFER_SIZE);
-        getclientIP(client_ip, server_sock);
-        
-        // add forward message 
-        char forwardstr[BUFFER_SIZE];
-        bzero(forwardstr, BUFFER_SIZE);
-        sprintf(forwardstr, "Forwarded: for=%s; proto=http; by=%s\r\n\r\n", client_ip, proxy_ip);
-        strcpy(&browser_buf[len-2], forwardstr);
+                struct sockaddr_in hostaddr;
+                bzero((char *)&hostaddr, sizeof(hostaddr));
+                hostaddr.sin_family = AF_INET; 
+                bcopy((char *)hp->h_addr_list[0],(char *)&hostaddr.sin_addr.s_addr, hp->h_length);
+                hostaddr.sin_port = htons(80);
 
-        // real forward
-        struct hostent *hp;
-        hp = gethostbyname(host);
-        if(hp == NULL) {
-            proxyResponseError(server_sock, 400, version);
-            return;
-        }
-        struct sockaddr_in hostaddr;
-        bzero((char *)&hostaddr, sizeof(hostaddr));
-        hostaddr.sin_family = AF_INET; 
-        bcopy((char *)hp->h_addr_list[0],(char *)&hostaddr.sin_addr.s_addr, hp->h_length);
-        hostaddr.sin_port = htons(80);
-
-        int host_sock;
-        if((host_sock = socket(AF_INET, SOCK_STREAM, 0)) < 0){
-            failHandler("create socket error!");
-        }
-
-        int addr_len2 = sizeof(hostaddr);
-        if(connect(host_sock, (struct sockaddr*)&hostaddr, addr_len2) < 0) {
-            failHandler("connect host socket error!");
-        }
-        write(host_sock, browser_buf, BUFFER_SIZE*2);
-
-        //get resoponse and forward to client
-        char host_buffer[BUFFER_SIZE];
-        bzero(host_buffer, BUFFER_SIZE);
-        char responsecode[8];
-        bzero(responsecode, 8);
-        char status[2];
-        bzero(status, 2);
-        char lengthchar[64];
-        bzero(lengthchar, 64);
-       
-
-        long length = 0;
-        checkflag = 1;
-        while((len = read(host_sock, host_buffer, BUFFER_SIZE)) > 0) {
-            
-            host_buffer[len] = 0x00;
-
-            if (checkflag) {
-                checkflag = 0;
-                sscanf(host_buffer, "%s %s %s", version, responsecode, status);
-                ret = 0;
-                while(strlen(host_buffer) > ret){
-                    if(host_buffer[ret] == '\r') {
-                        sscanf(host_buffer+ret, "%s%s", title, lengthchar);
-                        if(strcmp(title, "Content-Length:") == 0){
-                            length = atol(lengthchar);
-                            break;
-                        }
-                    }
-                    ret++;
+                if((host_sock = socket(AF_INET, SOCK_STREAM, 0)) < 0){
+                    failHandler("create socket error!");
                 }
-                
-                remotelog(client_ip,firstline,responsecode,length);
-            }
 
-            write(server_sock, host_buffer, BUFFER_SIZE);
+                int addr_len = sizeof(hostaddr);
+                if(connect(host_sock, (struct sockaddr*)&hostaddr, addr_len) < 0) {
+                    failHandler("connect host socket error!");
+                }
+            }
+            //add forward message
+            strcpy(&full_buf[strlen(full_buf)-2], forwardstr);
+            //forward request 
+            write(host_sock, full_buf, REQUERST_SIZE);
+            //--------------------------------------------
+            //get resoponse and forward to client
+            checkflag = 1;
+            response_length = 0;
+            has_contentlength_flag = 0;
+            bzero(browser_buf, BUFFER_SIZE);
+            while(read(host_sock, browser_buf, BUFFER_SIZE) > 0) {
+                if (checkflag) {
+                    checkflag = 0;
+                    bzero(cmd1, TEMP_SIZE);
+                    bzero(log_responsecode, 8);
+                    bzero(cmd3, TEMP_SIZE);
+                    sscanf(browser_buf, "%s %s %s", cmd1, log_responsecode, cmd3);
+                    retn = 0;
+                    bzero(cmd1, TEMP_SIZE);
+                    bzero(cmd2, TEMP_SIZE);
+                    while(strlen(browser_buf) > retn){
+                        if(browser_buf[retn] == '\r') {
+                            sscanf(browser_buf+retn, "%s%s", cmd1, cmd2);
+                            if(strcmp(cmd1, "Content-Length:") == 0){
+                                response_length = atol(cmd2);
+                                has_contentlength_flag = 1;
+                                break;
+                            }
+                        }
+                        retn++;
+                    }
+                    if (has_contentlength_flag) {
+                        remotelog(client_ip,log_firstline,log_responsecode,response_length);
+                    }else {
+                        response_length = strlen(strstr(browser_buf, "\r\n\r\n")) - 4;
+                    }  
+                }else{
+                    if(has_contentlength_flag == 0) {
+                        response_length += strlen(browser_buf);
+                    }    
+                }
+                if(write(server_sock, browser_buf, BUFFER_SIZE) < 0) {
+                    close(server_sock);
+                    close(host_sock);
+                    return;
+                }
+                bzero(browser_buf, BUFFER_SIZE);
+            }
+            if(has_contentlength_flag == 0){
+                remotelog(client_ip,log_firstline,log_responsecode,response_length);
+            }
         }
+        bzero(full_buf, REQUERST_SIZE); 
+        if(persistent_connect == 0) {
+            break;
+        }
+    }
+    close(server_sock);
+    if(host_sock > 0) {
         close(host_sock);
-        close(server_sock);
+    }    
 }
 
 void proxyResponseError(int bad_sock , int code, char * httpversion) {
@@ -228,7 +288,6 @@ void proxyResponseError(int bad_sock , int code, char * httpversion) {
     }
     sprintf(write_buf, "%s %d %s\r\nContent-Type: text/html; charset=UTF-8\r\nConnection: close\r\nDate: %s\r\n\r\n<!DOCTYPE html>\n<html>\n<title>%d %s</title>\n<p>%d %s</p>\n</html>\n", httpversion, code, msg, date, code, msg, code, msg);
     write(bad_sock, write_buf, BUFFER_SIZE);
-    close(bad_sock);
 }
 
 void * thread_handler(void * param) {
@@ -291,7 +350,7 @@ int main(int argc, char *argv[])
         failHandler("bind socket error!");
     }
 
-    if(listen(proxy_sock, 5) < 0){
+    if(listen(proxy_sock, 20) < 0){
         close(proxy_sock);
         failHandler("listen socket error!");
     }
