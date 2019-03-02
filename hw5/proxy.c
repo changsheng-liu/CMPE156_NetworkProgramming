@@ -85,6 +85,7 @@ void thread_proxy(int server_sock) {
     int checkflag = 0;
     int has_contentlength_flag = 0;
     //--------------------------------------
+    struct sockaddr_in hostaddr;
     struct hostent *hp;
     char cmd1[TEMP_SIZE];
     char cmd2[TEMP_SIZE];
@@ -105,7 +106,6 @@ void thread_proxy(int server_sock) {
     bzero(full_buf, REQUERST_SIZE);
     while(read(server_sock, browser_buf, BUFFER_SIZE) > 0){
         strcat(full_buf, browser_buf);
-        printf("???????%s\n", full_buf);
         bzero(browser_buf, BUFFER_SIZE);
         if(strstr(full_buf, "\r\n\r\n") == NULL) {
             continue;
@@ -177,12 +177,6 @@ void thread_proxy(int server_sock) {
             }
             //--------------------------------------------
             if(host_sock < 0) {
-                hp = gethostbyname(remote_server_host);
-                if(hp == NULL) {
-                    proxyResponseError(server_sock, 400, cmd3);
-                    bzero(full_buf, REQUERST_SIZE); 
-                    continue;
-                }
                 //get local ip
                 bzero(proxy_ip, 32);
                 getlocalIP(proxy_ip);
@@ -192,9 +186,14 @@ void thread_proxy(int server_sock) {
                 //add forward message 
                 bzero(forwardstr, 128);
                 sprintf(forwardstr, "Forwarded: for=%s; proto=http; by=%s\r\n\r\n", client_ip, proxy_ip);
-                //connect remote server
-                printf("########%s\n", forwardstr);
-                struct sockaddr_in hostaddr;
+                hp = gethostbyname(remote_server_host);
+
+                if(hp == NULL) {
+                    proxyResponseError(server_sock, 400, cmd3);
+                    bzero(full_buf, REQUERST_SIZE); 
+                    continue;
+                }
+
                 bzero((char *)&hostaddr, sizeof(hostaddr));
                 hostaddr.sin_family = AF_INET; 
                 bcopy((char *)hp->h_addr_list[0],(char *)&hostaddr.sin_addr.s_addr, hp->h_length);
@@ -207,10 +206,7 @@ void thread_proxy(int server_sock) {
                 tv2.tv_sec = 60;
                 tv2.tv_usec = 0;
                 setsockopt(host_sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv2, sizeof tv2);
-                
-                char str[100];
-                printf("ip : %s \n",inet_ntop(AF_INET,&hostaddr.sin_addr ,str, INET_ADDRSTRLEN));
-
+                //connect remote server
                 if(connect(host_sock, (struct sockaddr *)&hostaddr, (socklen_t)sizeof(hostaddr)) < 0) {
                     failHandler("connect host socket error!");
                 }
@@ -218,10 +214,7 @@ void thread_proxy(int server_sock) {
             //add forward message
             strcpy(&full_buf[strlen(full_buf)-2], forwardstr);
             //forward request 
-            printf("########%s\n", full_buf);
             if(write(host_sock, full_buf, REQUERST_SIZE) < 0){
-                        printf("@@@@@@@6\n");
-
                 close(server_sock);
                 close(host_sock);
                 return;
@@ -263,30 +256,22 @@ void thread_proxy(int server_sock) {
                         response_length += strlen(browser_buf);
                     }    
                 }
-                printf("@@@@@@@1\n");
                 if(write(server_sock, browser_buf, BUFFER_SIZE) < 0) {
-                                    printf("@@@@@@@2\n");
-
                     close(server_sock);
                     close(host_sock);
                     return;
                 }
                 bzero(browser_buf, BUFFER_SIZE);
             }
-            printf("@@@@@@@3\n");
-
             if(has_contentlength_flag == 0){
                 remotelog(client_ip,log_firstline,log_responsecode,response_length);
             }
         }
-        printf("@@@@@@@4\n");
         bzero(full_buf, REQUERST_SIZE); 
         if(persistent_connect == 0) {
             break;
         }
     }
-    printf("@@@@@@@5\n");
-
     close(server_sock);
     if(host_sock > 0) {
         close(host_sock);
