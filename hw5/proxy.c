@@ -84,6 +84,7 @@ void thread_proxy(int server_sock) {
     int persistent_connect = 0;
     int checkflag = 0;
     int has_contentlength_flag = 0;
+    int log_client_ip = 0;
     //--------------------------------------
     struct sockaddr_in hostaddr;
     struct hostent *hp;
@@ -101,6 +102,10 @@ void thread_proxy(int server_sock) {
     char forwardstr[128];
     //--------------------------------------
 
+    //get client ip
+    bzero(client_ip, 32);
+    getclientIP(client_ip, server_sock);
+
     // get request from client
     bzero(browser_buf, BUFFER_SIZE);
     bzero(full_buf, REQUERST_SIZE);
@@ -117,20 +122,6 @@ void thread_proxy(int server_sock) {
             bzero(remote_server_host, 128);
             persistent_connect = 0;
             // process request 
-            sscanf(full_buf, "%s %s %s", cmd1, cmd2, cmd3);
-            if(strcmp(cmd1, "GET") != 0 && strcmp(cmd1, "HEAD") != 0) {
-                proxyResponseError(server_sock, 501, cmd3);
-                bzero(full_buf, REQUERST_SIZE); 
-                continue;
-            }
-            if(strcmp(cmd3, "HTTP/1.1") != 0 && strcmp(cmd3, "HTTP/1.0") != 0) {
-                proxyResponseError(server_sock, 400, cmd3);
-                bzero(full_buf, REQUERST_SIZE);
-                continue;
-            }
-            if(strcmp(cmd3, "HTTP/1.1") == 0) {
-                persistent_connect = 1;
-            }
             retn = 0;
             while(strlen(full_buf) > retn){
                 if(full_buf[retn] == '\r') {
@@ -139,6 +130,24 @@ void thread_proxy(int server_sock) {
                 }
                 retn++;
             }
+
+            sscanf(full_buf, "%s %s %s", cmd1, cmd2, cmd3);
+            if(strcmp(cmd1, "GET") != 0 && strcmp(cmd1, "HEAD") != 0) {
+                remotelog(client_ip,log_firstline,"501",0);
+                proxyResponseError(server_sock, 501, cmd3);
+                bzero(full_buf, REQUERST_SIZE); 
+                continue;
+            }
+            if(strcmp(cmd3, "HTTP/1.1") != 0 && strcmp(cmd3, "HTTP/1.0") != 0) {
+                remotelog(client_ip,log_firstline,"400",0);
+                proxyResponseError(server_sock, 400, cmd3);
+                bzero(full_buf, REQUERST_SIZE);
+                continue;
+            }
+            if(strcmp(cmd3, "HTTP/1.1") == 0) {
+                persistent_connect = 1;
+            }
+            
             checkflag = 0;
             while(strlen(full_buf) > retn){
                 if(full_buf[retn] == '\r') {
@@ -157,6 +166,7 @@ void thread_proxy(int server_sock) {
             }
             
             if(checkflag == 0) {
+                remotelog(client_ip,log_firstline,"400",0);
                 proxyResponseError(server_sock, 400, cmd3);
                 bzero(full_buf, REQUERST_SIZE); 
                 continue;
@@ -170,6 +180,7 @@ void thread_proxy(int server_sock) {
                     }
                 }
                 if (checkflag == 1) {
+                    remotelog(client_ip,log_firstline,"403",0);
                     proxyResponseError(server_sock, 403, cmd3);
                     bzero(full_buf, REQUERST_SIZE);
                     break;
@@ -180,14 +191,12 @@ void thread_proxy(int server_sock) {
                 //get local ip
                 bzero(proxy_ip, 32);
                 getlocalIP(proxy_ip);
-                //get client ip
-                bzero(client_ip, 32);
-                getclientIP(client_ip, server_sock);
                 //add forward message 
                 bzero(forwardstr, 128);
                 sprintf(forwardstr, "Forwarded: for=%s; proto=http; by=%s\r\n\r\n", client_ip, proxy_ip);
                 hp = gethostbyname(remote_server_host);
                 if(hp == NULL) {
+                    remotelog(client_ip,log_firstline,"400",0);
                     proxyResponseError(server_sock, 400, cmd3);
                     bzero(full_buf, REQUERST_SIZE); 
                     continue;
