@@ -187,7 +187,6 @@ void thread_proxy(int server_sock) {
                 bzero(forwardstr, 128);
                 sprintf(forwardstr, "Forwarded: for=%s; proto=http; by=%s\r\n\r\n", client_ip, proxy_ip);
                 hp = gethostbyname(remote_server_host);
-
                 if(hp == NULL) {
                     proxyResponseError(server_sock, 400, cmd3);
                     bzero(full_buf, REQUERST_SIZE); 
