@@ -1,15 +1,15 @@
-all: util 
+all: server client 
 
 server: util
-	gcc -c server.c -o server.o
-	gcc util.o server.o -o server -lpthread
+	gcc -c ./src/server.c -o ./bin/server.o
+	gcc ./bin/util.o ./bin/server.o -o ./bin/server
 
-client: util datatype
-	gcc -c client.c -o client.o
-	gcc util.o myds.o client.o -o client -lpthread
+client: util 
+	gcc -c ./src/client.c -o ./bin/client.o
+	gcc ./bin/util.o ./bin/client.o -o ./bin/client
 
-util: ./src/util.c
+util:
 	gcc -c ./src/util.c -o ./bin/util.o
 	
 clean: 
-	rm ./bin/*.o /bin/client /bin/server 
+	rm ./bin/*.o ./bin/client ./bin/server 
