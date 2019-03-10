@@ -50,6 +50,10 @@ int main(int argc, char* argv[]) {
     }
 		
     //business logic
+    char buf[100];
+    write(client_fd, argv[3], 100);
+    read(client_fd, buf, 100);
+    fputs(buf, stdout);
 
     close(client_fd);
     return 0;

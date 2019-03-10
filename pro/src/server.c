@@ -8,8 +8,95 @@
 #include <pthread.h>
 #include "myprotocol.h"
 #include "util.h"
+#include "dynamicarray.h"
 
 #define MAX_LISTENING_QUEUE 20
+#define SERVER_BUFF_SIZE 1024
+
+const char * wrong_cmd_msg = "Undefined commend!\n";
+const char * no_such_client_msg = "This client is not available!\n";
+
+client_list_t * clients;
+pthread_mutex_t clients_lock = PTHREAD_MUTEX_INITIALIZER;
+
+void sendclient(int server_fd, client_t *c, char * buf) {
+    bzero(buf, SERVER_BUFF_SIZE);
+    sprintf(buf, "%s:%s:%s:%d\n", CMD_CONNECT, c->client, c->ip, c->port);
+    write(server_fd, buf, SERVER_BUFF_SIZE);
+}
+
+void command_response(int server_fd) {
+    char buf[SERVER_BUFF_SIZE];
+    //TODO
+    //1. add name for conflict
+    //2. need to add end of peer
+    //3. empty list
+    //4. limit name length
+    bzero(buf, SERVER_BUFF_SIZE);
+    while(read(server_fd, buf, sizeof(char) * SERVER_BUFF_SIZE) > 0) {
+        printf("%s\n", buf);
+        char * command = strtok(buf, ":");
+        if(strcmp(command, CMD_QUIT) == 0) {
+            char * clientname = strtok(NULL, ":");
+            pthread_mutex_lock(&clients_lock);
+            int idx = findItem(clients, clientname);
+            if (idx >= 0) {
+                removeItem(clients, idx);
+            }
+            pthread_mutex_unlock(&clients_lock);
+            close(server_fd);
+            break;
+        }else if(strcmp(command, CMD_CONNECT) == 0) {
+            char * clientname = strtok(NULL, ":");
+            char * peername = strtok(NULL, ":");
+            pthread_mutex_lock(&clients_lock);
+            int idx = findItem(clients, peername);
+            if (idx >= 0) {
+                client_t * c = popItem(clients, idx);
+                pthread_mutex_unlock(&clients_lock);
+                sendclient(server_fd, c, buf);
+            }else{
+                pthread_mutex_unlock(&clients_lock);
+                bzero(buf, SERVER_BUFF_SIZE);
+                strcpy(buf, no_such_client_msg);
+                write(server_fd, buf, SERVER_BUFF_SIZE);
+            }
+        }else if(strcmp(command, CMD_WAIT) == 0) {
+            client_t *c = malloc(sizeof(client_t));
+            memset(c, 0, sizeof(client_t));
+
+            char * clientname = strtok(NULL, ":");
+            char * ip = strtok(NULL, ":");
+            char * port_str = strtok(NULL, ":");
+            int port = atoi(port_str);
+            strcpy(c->client, clientname);
+            strcpy(c->ip, ip);
+            c->port = port;
+
+            pthread_mutex_lock(&clients_lock);
+            addItem(clients, c);
+            pthread_mutex_unlock(&clients_lock);
+        }else if(strcmp(command, CMD_LIST) == 0) {
+            int list_length = 0;
+            char *listbuf = printList(clients, &list_length);
+            write(server_fd, listbuf, list_length);
+            free(listbuf);
+        }else{
+            bzero(buf, SERVER_BUFF_SIZE);
+            strcpy(buf, wrong_cmd_msg);
+            write(server_fd, buf, SERVER_BUFF_SIZE);
+        }
+        bzero(buf, SERVER_BUFF_SIZE);
+    }
+}
+
+void * client_handler(void * arg) {
+    if (pthread_detach(pthread_self()) != 0)
+        exit(1);
+    int * fd = (int *)arg;
+    command_response(*fd);
+    pthread_exit(NULL);
+}
 
 void checkParam(int argc, char* argv[]) {
     if(argc != 2) {
@@ -22,7 +109,7 @@ void checkParam(int argc, char* argv[]) {
 
 int main(int argc, char* argv[]) {
     checkParam(argc, argv);
-
+    clients = initArray();
     int listen_fd;
     if((listen_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         failHandler("create socket error!");
@@ -49,7 +136,11 @@ int main(int argc, char* argv[]) {
 			failHandler("accopt socket error!");		
 		}
 		//business logic
-        close(server_fd);
+        pthread_t thread;
+        // command_response(server_fd);
+        if (pthread_create(&thread, NULL, client_handler, (void *)&server_fd) != 0) {
+            failHandler("create thread error!");
+        }
 	}
 
     return 0;
