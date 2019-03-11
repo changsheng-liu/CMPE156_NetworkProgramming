@@ -68,7 +68,7 @@ void print_waiting_list(char * list) {
 	}
 }
 
-void build_talk_connection(char * ip, int port) {
+void build_talk_connection(char * peer_name, char * ip, int port) {
     if((talk_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         failHandler("create talk socket error!");
     }
@@ -108,6 +108,52 @@ void create_receive_thread() {
     }
 }
 
+void read_waiting_list(int server_fd) {
+    char buf[BUFFER_SIZE];
+    bzero(buf, BUFFER_SIZE);
+    char *whole_list = malloc(BUFFER_SIZE);
+    bzero(whole_list, BUFFER_SIZE);
+    int rt = 0;
+    int idx = 0;
+    int total = 0;
+    while((rt = read(server_fd, buf, BUFFER_SIZE)) > 0) {
+        buf[rt] = 0x00;
+        idx++;
+        if(strcmp(buf, "l::") == 0 && idx == 1) {
+            printf("%s",no_available_client_msg);
+            return;
+        }else if (idx == 1){
+            strcpy(whole_list, buf);
+            total = rt;
+        }else{
+            whole_list = realloc(whole_list, idx*BUFFER_SIZE);
+            strcat(whole_list, buf);
+            total = total + rt;
+        }
+        whole_list[total] = 0x00;
+        bzero(buf, BUFFER_SIZE);
+    }
+    print_waiting_list(whole_list);
+    free(whole_list);
+}
+
+void read_connect_peer(int server_fd) {
+    char buf[BUFFER_SIZE];
+    bzero(buf,BUFFER_SIZE);
+    if(read(server_fd, buf, BUFFER_SIZE) > 0) {
+        if(strcmp(buf, "c::") == 0) {
+            printf("%s",no_such_client_msg);
+        }else{
+            strtok(buf, ":");
+            char * peer_name = strtok(NULL, ":");
+            char * peer_ip = strtok(NULL, ":");
+            char * peer_port = strtok(NULL, ":");
+            build_talk_connection(peer_name, peer_ip, atoi(peer_port));
+            create_receive_thread();
+        }
+    }
+}
+
 void process_input(int server_fd) {
     char * input;
     char * cmd;
@@ -141,35 +187,9 @@ void process_input(int server_fd) {
                 //TODO need to block?
                 continue;
             }else if(strcmp(cmd, "/list")) {
-                buf = malloc(BUFFER_SIZE);
-                //TODO change to while
-                if(read(server_fd, buf, BUFFER_SIZE) > 0) {
-                    if(strcmp(buf, "l::") == 0) {
-                        printf("%s",no_available_client_msg);
-                        free(buf);
-                        continue;
-                    }else{
-                        print_waiting_list(buf);
-                        free(buf);
-                        continue;
-                    }
-                }
+                read_waiting_list(server_fd);
             }else if(strcmp(cmd, "/connect")) {
-                buf = malloc(BUFFER_SIZE);
-                bzero(buf,BUFFER_SIZE);
-                if(read(server_fd, buf, BUFFER_SIZE) > 0) {
-                    if(strcmp(buf, "c::") == 0) {
-                        printf("%s",no_such_client_msg);
-                        free(buf);
-                        continue;
-                    }else{
-                        //TODO
-                        // build_talk_connection();
-                        // create_receive_thread();
-                        free(buf);
-                        continue;
-                    }
-                }
+                read_connect_peer(server_fd);
             }else if(strcmp(cmd, "/quit")) {
                 close(server_fd);
                 return;
