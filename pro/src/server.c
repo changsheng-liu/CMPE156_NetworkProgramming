@@ -13,15 +13,12 @@
 #define MAX_LISTENING_QUEUE 20
 #define SERVER_BUFF_SIZE 1024
 
-const char * wrong_cmd_msg = "Undefined commend!\n";
-const char * no_such_client_msg = "This client is not available!\n";
-
 client_list_t * clients;
 pthread_mutex_t clients_lock = PTHREAD_MUTEX_INITIALIZER;
 
 void sendclient(int server_fd, client_t *c, char * buf) {
     bzero(buf, SERVER_BUFF_SIZE);
-    sprintf(buf, "%s:%s:%s:%d\n", CMD_CONNECT, c->client, c->ip, c->port);
+    sprintf(buf, "c:%s:%s:%s:%d:", CMD_CONNECT, c->client, c->ip, c->port);
     write(server_fd, buf, SERVER_BUFF_SIZE);
 }
 
@@ -32,6 +29,7 @@ void command_response(int server_fd) {
     //2. need to add end of peer
     //3. empty list
     //4. limit name length
+    //5. cannot communicate with client self
     bzero(buf, SERVER_BUFF_SIZE);
     while(read(server_fd, buf, sizeof(char) * SERVER_BUFF_SIZE) > 0) {
         printf("%s\n", buf);
@@ -59,7 +57,7 @@ void command_response(int server_fd) {
                 pthread_mutex_unlock(&clients_lock);
                 bzero(buf, SERVER_BUFF_SIZE);
                 strcpy(buf, no_such_client_msg);
-                write(server_fd, buf, SERVER_BUFF_SIZE);
+                write(server_fd, "c::", 4);
             }
         }else if(strcmp(command, CMD_WAIT) == 0) {
             client_t *c = malloc(sizeof(client_t));
@@ -72,7 +70,7 @@ void command_response(int server_fd) {
             strcpy(c->client, clientname);
             strcpy(c->ip, ip);
             c->port = port;
-
+            
             pthread_mutex_lock(&clients_lock);
             addItem(clients, c);
             pthread_mutex_unlock(&clients_lock);

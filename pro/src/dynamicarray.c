@@ -53,8 +53,6 @@ client_t * popItem(client_list_t * a, int idx) {
 int findItem(client_list_t * a, char * name) {
 	for(int i = 0; i < a->occupied; i++) {
 		client_t * item = getItem(a, i);
-		printf("######%ld\n",strlen(item->client));
-		printf("^^^^^%ld\n",strlen(name));
 		int rt = strcmp(item->client, name);
 		if(rt == 0){
 			return i;
@@ -66,9 +64,9 @@ int findItem(client_list_t * a, char * name) {
 char * printList(client_list_t * a, int * bufsize) {
 	int temp_size = 1024;
 	char *temp = malloc(temp_size);
-	int t_len = 1;
+	int t_len = 2;
 	bzero(temp, temp_size);
-	strcpy(temp,":");
+	strcpy(temp,"l:");
 	for(int i = 0; i < a->occupied; i++) {
 		client_t * item = getItem(a, i);
 		t_len = t_len + strlen(item->client)+1;
@@ -81,6 +79,7 @@ char * printList(client_list_t * a, int * bufsize) {
 		}
 		strcat(temp,":");
 	}
-	*bufsize = t_len;
+	strcat(temp,":");
+	*bufsize = t_len+1;
 	return temp;
 }
