@@ -32,5 +32,6 @@ client_name_list_t * initNameArray();
 void addNameItem(client_name_list_t * a, char * n);
 int hasNameItem(client_name_list_t * a, char * n);
 void removeNameItem(client_name_list_t * a, char * n);
+void printNameList(client_name_list_t * a);
 
 #endif

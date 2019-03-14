@@ -82,6 +82,7 @@ void build_talk_connection(char * peer_name, char * ip, int port) {
     memset(addr, 0, sizeof(struct sockaddr_in));
     addr->sin_family = AF_INET;
     if(inet_aton(ip, &addr->sin_addr)<=0) { 
+        //warning error!
         failHandler("init talk socket addr error!");
     } 
     addr->sin_port = htons(port);
@@ -184,7 +185,7 @@ void process_input(int server_fd) {
                     printf("%s",talk_self_msg);
                     continue;
                 }
-                buf = format_connect_cmd(cmd, peername, &buf_length);
+                buf = format_connect_cmd(my_name, peername, &buf_length);
             }else if(strcmp(cmd, "/quit") == 0) {
                 buf = format_quit_cmd(my_name, &buf_length);
             }else {
@@ -267,7 +268,7 @@ int main(int argc, char* argv[]) {
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
     if(inet_aton(argv[1], &addr.sin_addr)<=0) { 
-        failHandler("connect socket error!");
+        failHandler("init socket error!");
     } 
     addr.sin_port = htons(atoi(argv[2]));
 
@@ -277,8 +278,8 @@ int main(int argc, char* argv[]) {
 	
     int ret = check_name_conflict(my_name, server_fd);
     if(ret == 0) {
-        printf("User name conflict! Exiting...\n");
-        return 0;
+        close(server_fd);
+        failHandler("User name conflict! Exiting...");
     }
     //business logic
     process_input(server_fd);

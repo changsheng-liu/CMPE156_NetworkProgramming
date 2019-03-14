@@ -46,12 +46,15 @@ void command_response(int server_fd) {
         if(strcmp(command, CMD_JOIN) == 0) {
             char * clientname = strtok(NULL, ":");
             if(hasNameItem(client_names,clientname) == 1) {
-                write(server_fd, CMD_CONFIRM_JOIN, 6);
+                write(server_fd, CMD_REJECTION_JOIN, 6);
                 close(server_fd);
                 break;
             }else{
                 pthread_mutex_lock(&client_names_lock);
-                addNameItem(client_names, clientname);
+                char * storename = malloc(CLIENT_NAME_LENGTH);
+                bzero(storename, CLIENT_NAME_LENGTH);
+                strcpy(storename, clientname);
+                addNameItem(client_names, storename);
                 pthread_mutex_unlock(&client_names_lock);
                 write(server_fd, CMD_CONFIRM_JOIN, 6);
             }

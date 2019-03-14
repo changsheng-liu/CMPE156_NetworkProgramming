@@ -130,3 +130,9 @@ void removeNameItem(client_name_list_t * a, char * n) {
 	}
 	a->occupied--;
 }
+
+void printNameList(client_name_list_t * a) {
+	for(int i = 0; i < a->occupied; i++) {
+		char * item = *(a->array + i);
+	}
+}
