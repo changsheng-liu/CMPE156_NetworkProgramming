@@ -23,14 +23,14 @@ char * get_client_ip(int server_fd) {
     char * ip = malloc(16 * sizeof(char));
     struct sockaddr_in addr;
     socklen_t len = sizeof(struct sockaddr);
-    if(getpeername(server_fd, (struct sockaddr *)&addr, &len) > 0) {
-        strcpy(ip, inet_ntoa(addr.sin_addr));
-    }
+    getpeername(server_fd, (struct sockaddr *)&addr, &len);
+    bzero(ip, 16);
+    strcpy(ip, inet_ntoa(addr.sin_addr));
     return ip;
 }
 void sendclient(int server_fd, client_t *c, char * buf) {
     bzero(buf, SERVER_BUFF_SIZE);
-    sprintf(buf, "c:%s:%s:%s:%d:", CMD_CONNECT, c->client, c->ip, c->port);
+    sprintf(buf, "c:%s:%s:%d:", c->client, c->ip, c->port);
     write(server_fd, buf, SERVER_BUFF_SIZE);
 }
 
@@ -41,7 +41,6 @@ void command_response(int server_fd) {
     //3. empty list
     bzero(buf, SERVER_BUFF_SIZE);
     while(read(server_fd, buf, sizeof(char) * SERVER_BUFF_SIZE) > 0) {
-        printf("%s\n", buf);
         char * command = strtok(buf, ":");
         if(strcmp(command, CMD_JOIN) == 0) {
             char * clientname = strtok(NULL, ":");
@@ -97,7 +96,6 @@ void command_response(int server_fd) {
             c->port = port;
 
             c->ip = get_client_ip(server_fd);
-            
             pthread_mutex_lock(&clients_lock);
             addItem(clients, c);
             pthread_mutex_unlock(&clients_lock);

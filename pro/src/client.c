@@ -6,7 +6,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
-#include <netdb.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <pthread.h>
@@ -24,14 +23,6 @@ int talk_port;
 pthread_t talk_thread;
 
 const char * invalid_input_msg = "Invalid input! Please input command or talk to someone!\n";
-
-void getlocalIP(char * str) {
-    char proxyHostName[255];
-    gethostname(proxyHostName, 255);
-    struct hostent * proxyHost;
-    proxyHost=gethostbyname(proxyHostName);
-    inet_ntop(AF_INET,proxyHost->h_addr_list[0] ,str, INET_ADDRSTRLEN);
-}
 
 void create_wait_socket() {
     int listen_fd;
@@ -65,6 +56,7 @@ void print_waiting_list(char * list) {
 	strncpy(name,list+2, 2);
 	while(j < strlen(list)-1){
 		if(list[j] == ':') {
+            bzero(name, CLIENT_NAME_LENGTH);
 			strncpy(name,list+i, j-i);
 			i = j+1;
 			printf("%d) %s\n",idx, name);
@@ -144,6 +136,9 @@ void read_waiting_list(int server_fd) {
         bzero(buf, BUFFER_SIZE);
     }
     print_waiting_list(whole_list);
+    bzero(whole_list, strlen(whole_list));
+    idx = 0;
+    total = 0;
 }
 
 void read_connect_peer(int server_fd) {
@@ -286,4 +281,3 @@ int main(int argc, char* argv[]) {
     
     return 0;
 }
-
