@@ -4,7 +4,7 @@
 
 typedef struct{
 	char client[CLIENT_NAME_LENGTH];
-	char ip[16];
+	char * ip;
 	int port;
 }client_t;
 

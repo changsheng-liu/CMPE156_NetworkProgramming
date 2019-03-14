@@ -13,14 +13,14 @@ char * format_join_cmd(char * my_name, int * cmd_length) {
     return buf;
 }
 
-char * format_wait_cmd(char * my_name, char * ip, int port, int * cmd_length){
+char * format_wait_cmd(char * my_name, int port, int * cmd_length){
     //w:my_name:ip:port:
     char port_s[8];
     sprintf(port_s, "%d", port);
-    *cmd_length = strlen(my_name)+strlen(ip)+strlen(port_s)+6;
+    *cmd_length = strlen(my_name)+strlen(port_s)+5;
     char * buf = malloc(*cmd_length);
     bzero(buf, *cmd_length);
-    sprintf(buf, "w:%s:%s:%s:", my_name, ip, port_s);
+    sprintf(buf, "w:%s:%s:", my_name, port_s);
     return buf;
 }
 

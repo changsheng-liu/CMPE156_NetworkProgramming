@@ -20,7 +20,7 @@
 
 char * format_join_cmd(char * my_name, int * cmd_length); //a:my_name:
 //response: nothing
-char * format_wait_cmd(char * my_name, char * ip, int port, int * cmd_length); //w:my_name:ip:port:
+char * format_wait_cmd(char * my_name, int port, int * cmd_length); //w:my_name:ip:port:
 //response: nothing
 char * format_quit_cmd(char * my_name, int * cmd_length); //q:my_name:
 //response: nothing

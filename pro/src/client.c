@@ -6,6 +6,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <pthread.h>
@@ -19,38 +20,42 @@ int is_talking_flag;
 int server_fd;
 int talk_fd;
 
-char talk_ip[16];
 int talk_port;
 pthread_t talk_thread;
 
 const char * invalid_input_msg = "Invalid input! Please input command or talk to someone!\n";
 
-// void create_wait_socket() {
-//     int listen_fd;
-//     if((listen_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-//         failHandler("create socket error!");
-//     }
+void getlocalIP(char * str) {
+    char proxyHostName[255];
+    gethostname(proxyHostName, 255);
+    struct hostent * proxyHost;
+    proxyHost=gethostbyname(proxyHostName);
+    inet_ntop(AF_INET,proxyHost->h_addr_list[0] ,str, INET_ADDRSTRLEN);
+}
 
-//     struct sockaddr_in * addr;
-//     bzero(addr, sizeof(struct sockaddr_in));
-//     addr->sin_family = AF_INET;
-//     addr->sin_addr.s_addr = htonl(INADDR_ANY);
-//     addr->sin_port = htons(0);
+void create_wait_socket() {
+    int listen_fd;
+    if((listen_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        failHandler("create socket error!");
+    }
 
-//     if((bind(listen_fd, (struct sockaddr*)addr, (socklen_t)sizeof(struct sockaddr_in))) < 0) {
-//         failHandler("bind socket error!");
-//     }
+    struct sockaddr_in * addr = malloc(sizeof(struct sockaddr_in));
+    memset(addr, 0, sizeof(struct sockaddr_in));
+    // bzero(addr, sizeof(struct sockaddr_in));
+    addr->sin_family = AF_INET;
+    addr->sin_addr.s_addr = htonl(INADDR_ANY);
+    addr->sin_port = htons(0);
+
+    if((bind(listen_fd, (struct sockaddr*)addr, (socklen_t)sizeof(struct sockaddr_in))) < 0) {
+        failHandler("bind socket error!");
+    }
     
-//     if(listen(listen_fd, 1) < 0){
-//         failHandler("listen socket error!");
-//     }
-//     int addr_len;
-//     while (1) {
-// 		addr_len = sizeof(struct sockaddr_in);
-// 		int server_fd = accept(listen_fd, (struct sockaddr*)addr, (socklen_t *) &addr_len);
-
-//     }
-// }
+    socklen_t len = sizeof(*addr);
+    if (getsockname(listen_fd, (struct sockaddr *)addr, &len) == -1) {
+		failHandler("getsockname() failed");
+	}
+    talk_port = ntohs(addr->sin_port);
+}
 
 void print_waiting_list(char * list) {
     int idx = 1;
@@ -95,7 +100,7 @@ void receive_msg(int socket) {
     }
 }
 
-void * small_talk(void * arg) {
+void * peer_talk(void * arg) {
     if (pthread_detach(pthread_self()) != 0)
         exit(1);
     int * sock = (int *)arg;
@@ -104,7 +109,7 @@ void * small_talk(void * arg) {
 }
 
 void create_receive_thread() {
-    if (pthread_create(&talk_thread, NULL, small_talk, (void *)&talk_fd) != 0) {
+    if (pthread_create(&talk_thread, NULL, peer_talk, (void *)&talk_fd) != 0) {
         failHandler("create thread error!");
     }
 }
@@ -132,6 +137,9 @@ void read_waiting_list(int server_fd) {
             total = total + rt;
         }
         whole_list[total] = 0x00;
+        if(strstr(buf, "::") > 0) {
+            break;
+        }
         bzero(buf, BUFFER_SIZE);
     }
     print_waiting_list(whole_list);
@@ -165,35 +173,35 @@ void process_input(int server_fd) {
         input = readline("> ");
         if('/' == input[0]) {
             cmd = strtok(input, " ");
-            if(strcmp(cmd, "/wait")) {
-                // create_wait_socket();//TODO 
-                buf = format_wait_cmd(my_name, talk_ip, talk_port, &buf_length);
-            }else if(strcmp(cmd, "/list")) {
+            if(strcmp(cmd, "/wait") == 0) {
+                create_wait_socket();//TODO 
+                buf = format_wait_cmd(my_name, talk_port, &buf_length);
+            }else if(strcmp(cmd, "/list")  == 0) {
                 buf = format_list_cmd(my_name, &buf_length);
-            }else if(strcmp(cmd, "/connect")) {
+            }else if(strcmp(cmd, "/connect") == 0) {
                 char * peername = strtok(NULL, "");
                 if(strcmp(peername, my_name) == 0) {
                     printf("%s",talk_self_msg);
                     continue;
                 }
                 buf = format_connect_cmd(cmd, peername, &buf_length);
-            }else if(strcmp(cmd, "/quit")) {
+            }else if(strcmp(cmd, "/quit") == 0) {
                 buf = format_quit_cmd(my_name, &buf_length);
             }else {
                 printf("%s",wrong_cmd_msg);
                 continue;
             }
-            
+
             write(server_fd, buf, buf_length);
 
-            if(strcmp(cmd, "/wait")) {
+            if(strcmp(cmd, "/wait") == 0) {
                 //TODO need to block?
                 continue;
-            }else if(strcmp(cmd, "/list")) {
+            }else if(strcmp(cmd, "/list") == 0) {
                 read_waiting_list(server_fd);
-            }else if(strcmp(cmd, "/connect")) {
+            }else if(strcmp(cmd, "/connect") == 0) {
                 read_connect_peer(server_fd);
-            }else if(strcmp(cmd, "/quit")) {
+            }else if(strcmp(cmd, "/quit") == 0) {
                 close(server_fd);
                 return;
             }

@@ -3,6 +3,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <string.h>
 #include <unistd.h>
 #include <pthread.h>
@@ -18,6 +19,15 @@ pthread_mutex_t clients_lock = PTHREAD_MUTEX_INITIALIZER;
 client_name_list_t * client_names;
 pthread_mutex_t client_names_lock = PTHREAD_MUTEX_INITIALIZER;
 
+char * get_client_ip(int server_fd) {
+    char * ip = malloc(16 * sizeof(char));
+    struct sockaddr_in addr;
+    socklen_t len = sizeof(struct sockaddr);
+    if(getpeername(server_fd, (struct sockaddr *)&addr, &len) > 0) {
+        strcpy(ip, inet_ntoa(addr.sin_addr));
+    }
+    return ip;
+}
 void sendclient(int server_fd, client_t *c, char * buf) {
     bzero(buf, SERVER_BUFF_SIZE);
     sprintf(buf, "c:%s:%s:%s:%d:", CMD_CONNECT, c->client, c->ip, c->port);
@@ -78,12 +88,12 @@ void command_response(int server_fd) {
             memset(c, 0, sizeof(client_t));
 
             char * clientname = strtok(NULL, ":");
-            char * ip = strtok(NULL, ":");
             char * port_str = strtok(NULL, ":");
             int port = atoi(port_str);
             strcpy(c->client, clientname);
-            strcpy(c->ip, ip);
             c->port = port;
+
+            c->ip = get_client_ip(server_fd);
             
             pthread_mutex_lock(&clients_lock);
             addItem(clients, c);
