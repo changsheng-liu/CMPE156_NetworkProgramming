@@ -50,3 +50,10 @@ char * format_connect_cmd(char * my_name, char * peer_name, int * cmd_length){
     sprintf(buf, "c:%s:%s:", my_name,peer_name);
     return buf;
 } 
+
+int check_user_name_length(char * name) {
+    if (strlen(name) > CLIENT_NAME_LENGTH-1) {
+        return 0;
+    }
+    return 1;
+}

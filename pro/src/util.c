@@ -60,3 +60,30 @@ long file_length(const char * filename) {
     // fclose(fp);
     // return size;
 }
+
+int isOnlyLettersOrNumbers(const char * name) {
+    	
+	regex_t regex;
+	int reti;
+	char msgbuf[100];
+
+	reti = regcomp(&regex, "^[a-zA-Z0-9]*$", 0);
+	if (reti) {
+		failHandler("regex Error!");
+	}
+
+	reti = regexec(&regex, name, 0, NULL, 0);
+	if (!reti) {
+        regfree(&regex);
+        return 1;
+	}
+	else if (reti == REG_NOMATCH) {
+        regfree(&regex);
+		return 0;
+	}
+	else {
+		regerror(reti, &regex, msgbuf, sizeof(msgbuf));
+		failHandler("regex Error!");
+	}
+    return 0;
+}

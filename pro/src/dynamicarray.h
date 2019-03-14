@@ -22,4 +22,15 @@ void removeItem(client_list_t * a, int idx);
 int findItem(client_list_t * a, char * name);
 char * printList(client_list_t * a, int * bufsize);
 
+typedef struct{
+	char ** array;
+	int occupied;
+	int size;
+}client_name_list_t;
+
+client_name_list_t * initNameArray();
+void addNameItem(client_name_list_t * a, char * n);
+int hasNameItem(client_name_list_t * a, char * n);
+void removeNameItem(client_name_list_t * a, char * n);
+
 #endif

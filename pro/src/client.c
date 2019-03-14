@@ -10,6 +10,7 @@
 #include <readline/history.h>
 #include <pthread.h>
 #include <time.h>
+#include <signal.h>
 #include "util.h"
 #include "myprotocol.h"
 
@@ -134,7 +135,6 @@ void read_waiting_list(int server_fd) {
         bzero(buf, BUFFER_SIZE);
     }
     print_waiting_list(whole_list);
-    free(whole_list);
 }
 
 void read_connect_peer(int server_fd) {
@@ -172,6 +172,10 @@ void process_input(int server_fd) {
                 buf = format_list_cmd(my_name, &buf_length);
             }else if(strcmp(cmd, "/connect")) {
                 char * peername = strtok(NULL, "");
+                if(strcmp(peername, my_name) == 0) {
+                    printf("%s",talk_self_msg);
+                    continue;
+                }
                 buf = format_connect_cmd(cmd, peername, &buf_length);
             }else if(strcmp(cmd, "/quit")) {
                 buf = format_quit_cmd(my_name, &buf_length);
@@ -181,7 +185,6 @@ void process_input(int server_fd) {
             }
             
             write(server_fd, buf, buf_length);
-            free(buf);
 
             if(strcmp(cmd, "/wait")) {
                 //TODO need to block?
@@ -215,9 +218,30 @@ void checkParam(int argc, char* argv[]) {
     if(!isNumber(argv[2])) {
         failHandler("Please input correct port number!");
     }
-    //name length is limit
-    //name only has number and alphbet
-    //name not conflict
+    if(check_user_name_length(argv[3]) == 0){
+        failHandler("Please input the user name less than 15 characters!");
+    }
+    if(isOnlyLettersOrNumbers(argv[3]) == 0) {
+        failHandler("Please input the user name with only letters or numbers!");
+    }
+}
+
+int check_name_conflict(char * my_name, int socket) {
+    char buf[BUFFER_SIZE];
+    bzero(buf, BUFFER_SIZE);
+    sprintf(buf, "a:%s:", my_name);
+    write(socket, buf, BUFFER_SIZE);
+    bzero(buf, BUFFER_SIZE);
+    if(read(socket, buf, BUFFER_SIZE) > 0) {
+        if(strcmp(buf, CMD_CONFIRM_JOIN) == 0){
+            return 1;
+        }else if (strcmp(buf, CMD_REJECTION_JOIN) == 0) {
+            return 0;
+        }else{
+            return -1;
+        }
+    }
+    return -1;
 }
 
 int main(int argc, char* argv[]) {
@@ -242,7 +266,12 @@ int main(int argc, char* argv[]) {
 	if(connect(server_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0){
         failHandler("connect socket error!");
     }
-		
+	
+    int ret = check_name_conflict(my_name, server_fd);
+    if(ret == 0) {
+        printf("User name conflict! Exiting...\n");
+        return 0;
+    }
     //business logic
     process_input(server_fd);
     

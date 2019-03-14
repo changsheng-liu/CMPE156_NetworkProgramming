@@ -83,3 +83,50 @@ char * printList(client_list_t * a, int * bufsize) {
 	*bufsize = t_len+1;
 	return temp;
 }
+
+client_name_list_t * initNameArray() {
+	client_name_list_t * arr = malloc(sizeof(client_name_list_t));
+	memset(arr, 0, sizeof(client_name_list_t));
+	arr->occupied = 0;
+    arr->size = ADD_SIZE;
+	arr->array = calloc(ADD_SIZE, sizeof(char *));
+	memset(arr->array, 0, ADD_SIZE * sizeof(char *));
+	return arr;
+}
+
+void addNameItem(client_name_list_t * a, char * n) {
+	if (a->size == a->occupied) {
+        int n_size = ADD_SIZE + a->size;
+		a->array = realloc(a->array, n_size * sizeof(char *));
+		a->size = n_size;
+	}
+	a->array[a->occupied] = n;
+	a->occupied++;
+}
+ 
+int hasNameItem(client_name_list_t * a, char * n) {
+	for(int i = 0; i < a->occupied; i++) {
+		char * item = *(a->array + i);
+		if(strcmp(n, item) == 0){
+			return 1;
+		}
+	}
+	return 0;
+}
+
+void removeNameItem(client_name_list_t * a, char * n) {
+	int idx = -1;
+	for(int i = 0; i < a->occupied; i++) {
+		char * item = *(a->array + i);
+		if(strcmp(n, item) == 0){
+			idx = i;
+		}
+	}
+	if(idx == -1){
+		return;
+	}
+	for(int i = idx; i < a->occupied-1; i++) {
+		a->array[i] = a->array[i+1];
+	}
+	a->occupied--;
+}
