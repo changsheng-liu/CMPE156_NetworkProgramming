@@ -28,7 +28,7 @@ char * get_client_ip(int server_fd) {
     strcpy(ip, inet_ntoa(addr.sin_addr));
     return ip;
 }
-void sendclient(int server_fd, client_t *c, char * buf) {
+void send_client(int server_fd, client_t *c, char * buf) {
     bzero(buf, SERVER_BUFF_SIZE);
     sprintf(buf, "c:%s:%s:%d:", c->client, c->ip, c->port);
     write(server_fd, buf, SERVER_BUFF_SIZE);
@@ -36,9 +36,6 @@ void sendclient(int server_fd, client_t *c, char * buf) {
 
 void command_response(int server_fd) {
     char buf[SERVER_BUFF_SIZE];
-    //TODO
-    //2. need to add end of peer
-    //3. empty list
     bzero(buf, SERVER_BUFF_SIZE);
     while(read(server_fd, buf, sizeof(char) * SERVER_BUFF_SIZE) > 0) {
         char * command = strtok(buf, ":");
@@ -78,7 +75,7 @@ void command_response(int server_fd) {
             if (idx >= 0) {
                 client_t * c = popItem(clients, idx);
                 pthread_mutex_unlock(&clients_lock);
-                sendclient(server_fd, c, buf);
+                send_client(server_fd, c, buf);
             }else{
                 pthread_mutex_unlock(&clients_lock);
                 bzero(buf, SERVER_BUFF_SIZE);
@@ -120,7 +117,7 @@ void * client_handler(void * arg) {
     pthread_exit(NULL);
 }
 
-void checkParam(int argc, char* argv[]) {
+void check_param(int argc, char* argv[]) {
     if(argc != 2) {
         failHandler("Please use server by correct input! usage: ./server <portnumber>");
     }
@@ -130,7 +127,7 @@ void checkParam(int argc, char* argv[]) {
 }
 
 int main(int argc, char* argv[]) {
-    checkParam(argc, argv);
+    check_param(argc, argv);
     clients = initArray();
     client_names = initNameArray();
     int listen_fd;
