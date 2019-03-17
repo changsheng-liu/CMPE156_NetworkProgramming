@@ -23,6 +23,7 @@ client_state_t my_state;
 
 int talk_fd;
 int l_fd;
+int srvr_fd;
 
 //print peer relate functions
 void * __peer_receive__(void * arg) {
@@ -30,8 +31,12 @@ void * __peer_receive__(void * arg) {
         exit(1);
     char buf[BUFFER_SIZE];
     while(read(talk_fd, buf, BUFFER_SIZE) > 0){
-        printf("%s\n", buf);
+        printf("\n%s\n%s>", buf, my_name);
+        fflush(stdout);
     }
+    printf("\npeer chatter has left!\n%s> ", my_name);
+    fflush(stdout);
+    my_state = CLIENT_STATE_NORMAL;
     pthread_exit(NULL);
 }
 
@@ -148,9 +153,12 @@ void process_input(int server_fd) {
 
     char * buf;
     int buf_length;
-   
+    char name[CLIENT_NAME_LENGTH+2];
+    bzero(name,CLIENT_NAME_LENGTH+2);
+    strcpy(name, my_name);
+    strcat(name, "> ");
     while(1){
-        input = readline("> ");
+        input = readline(name);
         if('/' == input[0]) {
             cmd = strtok(input, " ");
             if(should_command_work_with_state(cmd, my_state) == 0) {
@@ -205,6 +213,16 @@ void process_input(int server_fd) {
 void INThandler(int sig) {
     if(my_state == CLIENT_STATE_TALKING) {
         shutdown(talk_fd, SHUT_RDWR);
+        printf("\nLeave chating state!\n%s> ",my_name);
+        fflush(stdout);
+    }
+    if(my_state == CLIENT_STATE_WAITING) {
+        int buf_length;
+        char * buf = format_leavewait_cmd(my_name, &buf_length);
+        write(srvr_fd, buf, buf_length);
+        shutdown(l_fd, SHUT_RDWR);
+        printf("\nLeave waiting state!\n%s> ",my_name);
+        fflush(stdout);
     }
     my_state = CLIENT_STATE_NORMAL;
 }
@@ -216,6 +234,7 @@ int main(int argc, char* argv[]) {
     if((server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         failHandler("create socket error!");
     }
+    srvr_fd = server_fd;
 	struct timeval tv;
     tv.tv_sec = 180;
     tv.tv_usec = 0;

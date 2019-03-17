@@ -100,6 +100,14 @@ void command_response(int server_fd) {
             int list_length = 0;
             char *listbuf = printList(clients, &list_length);
             write(server_fd, listbuf, list_length);
+        }else if(strcmp(command, CMD_LEAVEWAIT) == 0) {
+            char * clientname = strtok(NULL, ":");
+            pthread_mutex_lock(&clients_lock);
+            int idx = findItem(clients, clientname);
+            if (idx >= 0) {
+                removeItem(clients, idx);
+            }
+            pthread_mutex_unlock(&clients_lock);
         }else{
             bzero(buf, SERVER_BUFF_SIZE);
             strcpy(buf, wrong_cmd_msg);

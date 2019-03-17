@@ -51,6 +51,15 @@ char * format_connect_cmd(char * my_name, char * peer_name, int * cmd_length){
     return buf;
 } 
 
+char * format_leavewait_cmd(char * my_name, int * cmd_length){
+    //r:my_name:
+    *cmd_length = strlen(my_name)+4;
+    char * buf = malloc(*cmd_length);
+    bzero(buf, *cmd_length);
+    sprintf(buf, "r:%s:", my_name);
+    return buf;
+}
+
 int check_user_name_length(char * name) {
     if (strlen(name) > CLIENT_NAME_LENGTH-1) {
         return 0;

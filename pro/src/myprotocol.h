@@ -10,6 +10,7 @@
 #define CMD_QUIT "q"
 #define CMD_LIST "l" 
 #define CMD_CONNECT "c"
+#define CMD_LEAVEWAIT "r"
 #define CLIENT_NAME_LENGTH 16
 
 #define wrong_cmd_msg  "Undefined command!\n"
@@ -28,6 +29,8 @@ char * format_list_cmd(char * my_name, int * cmd_length); //l:my_name:
 //response: l:: or l:client1:client2::
 char * format_connect_cmd(char * my_name, char * peer_name, int * cmd_length); //c:my_name:peer_name:
 //response: c:: or c:peername:peerip:peerport:
+char * format_leavewait_cmd(char * my_name, int * cmd_length); //r:my_name:
+//response: nothing
 
 int check_user_name_length(char * name);
 

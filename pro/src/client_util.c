@@ -48,7 +48,6 @@ int check_name_conflict(char * my_name, int socket) {
     return -1;
 }
 
-
 void print_waiting_list(char * list) {
     int idx = 1;
 	int i = 2;
@@ -129,5 +128,7 @@ void send_msg_to_peer(int peer_fd, char * msg, char * my_name) {
     char * sending_msg = malloc(BUFFER_SIZE);
     bzero(sending_msg, BUFFER_SIZE);
     sprintf(sending_msg, "%s: %s\n", my_name, msg);
-    write(peer_fd, sending_msg, strlen(sending_msg));
+    if(peer_fd > 0) {
+        write(peer_fd, sending_msg, strlen(sending_msg));
+    }
 }
