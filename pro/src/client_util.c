@@ -128,6 +128,6 @@ int should_command_work_with_state(char * cmd, client_state_t state) {
 void send_msg_to_peer(int peer_fd, char * msg, char * my_name) {
     char * sending_msg = malloc(BUFFER_SIZE);
     bzero(sending_msg, BUFFER_SIZE);
-    sprintf("%s: %s\n", my_name, msg);
+    sprintf(sending_msg, "%s: %s\n", my_name, msg);
     write(peer_fd, sending_msg, strlen(sending_msg));
 }
