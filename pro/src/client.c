@@ -22,14 +22,14 @@ char * my_name;
 client_state_t my_state;
 
 int talk_fd;
+int l_fd;
 
 //print peer relate functions
-void * __peer_receive(void * arg) {
+void * __peer_receive__(void * arg) {
     if (pthread_detach(pthread_self()) != 0)
         exit(1);
-    int fd = *((int *)arg);  
     char buf[BUFFER_SIZE];
-    while(read(fd, buf, BUFFER_SIZE) > 0){
+    while(read(talk_fd, buf, BUFFER_SIZE) > 0){
         printf("%s\n", buf);
     }
     pthread_exit(NULL);
@@ -38,7 +38,7 @@ void * __peer_receive(void * arg) {
 void create_receive_thread(int peer_talk_fd) {
     my_state = CLIENT_STATE_TALKING;
     pthread_t talk_thread;
-    if (pthread_create(&talk_thread, NULL, __peer_receive, (void *)&peer_talk_fd) != 0) {
+    if (pthread_create(&talk_thread, NULL, __peer_receive__, NULL) != 0) {
         failHandler("create thread error!");
     }
 }
@@ -47,25 +47,24 @@ void create_receive_thread(int peer_talk_fd) {
 void * __listen_receive__(void * arg) {
     if (pthread_detach(pthread_self()) != 0)
         exit(1);
-    int fd = *((int *)arg);
+    
     fd_set rset;
 
     while(1){
         FD_ZERO(&rset);
-        FD_SET(fd, &rset);
+        FD_SET(l_fd, &rset);
         if(my_state == CLIENT_STATE_NORMAL){
             break;
         }
-        int ret = select(fd + 1, &rset, NULL, NULL,NULL); 
+        int ret = select(l_fd + 1, &rset, NULL, NULL,NULL); 
         if(ret < 0){
             failHandler("selsect error!");
         }else if(ret == 0){
-            sleep(1);
             continue;
         }else if(ret > 0){
-            FD_CLR(fd,&rset);
-            talk_fd = accept(fd, (struct sockaddr*)NULL, NULL);
+            talk_fd = accept(l_fd, (struct sockaddr*)NULL, NULL);
             create_receive_thread(talk_fd);
+            close(l_fd);
             break;
         }
     }
@@ -95,7 +94,8 @@ int wait_pre_process() {
     }
 
     pthread_t listen_thread;
-    if (pthread_create(&listen_thread, NULL, __listen_receive__, (void *)&listen_fd) != 0) {
+    l_fd = listen_fd;
+    if (pthread_create(&listen_thread, NULL, __listen_receive__, NULL) != 0) {
         failHandler("create thread error!");
     }
 
