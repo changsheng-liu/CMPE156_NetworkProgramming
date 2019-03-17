@@ -13,18 +13,68 @@
 #include <signal.h>
 #include "util.h"
 #include "myprotocol.h"
-
-char * my_name;
-int is_talking_flag;
-int server_fd;
-int talk_fd;
-
-int talk_port;
-pthread_t talk_thread;
+#include "client_util.h"
 
 const char * invalid_input_msg = "Invalid input! Please input command or talk to someone!\n";
+const char * state_not_match_msg = "Cound not handle this command in this state!\n";
 
-void create_wait_socket() {
+char * my_name;
+client_state_t my_state;
+
+int talk_fd;
+
+//print peer relate functions
+void * __peer_receive(void * arg) {
+    if (pthread_detach(pthread_self()) != 0)
+        exit(1);
+    int fd = *((int *)arg);  
+    char buf[BUFFER_SIZE];
+    while(read(fd, buf, BUFFER_SIZE) > 0){
+        printf("%s\n", buf);
+    }
+    pthread_exit(NULL);
+}
+
+void create_receive_thread(int peer_talk_fd) {
+    my_state = CLIENT_STATE_TALKING;
+    pthread_t talk_thread;
+    if (pthread_create(&talk_thread, NULL, __peer_receive, (void *)&peer_talk_fd) != 0) {
+        failHandler("create thread error!");
+    }
+}
+
+//wait related functions
+void * __listen_receive__(void * arg) {
+    if (pthread_detach(pthread_self()) != 0)
+        exit(1);
+    int fd = *((int *)arg);
+    fd_set rset;
+
+    while(1){
+        FD_ZERO(&rset);
+        FD_SET(fd, &rset);
+        if(my_state == CLIENT_STATE_NORMAL){
+            break;
+        }
+        int ret = select(fd + 1, &rset, NULL, NULL,NULL); 
+        if(ret < 0){
+            failHandler("selsect error!");
+        }else if(ret == 0){
+            sleep(1);
+            continue;
+        }else if(ret > 0){
+            FD_CLR(fd,&rset);
+            talk_fd = accept(fd, (struct sockaddr*)NULL, NULL);
+            create_receive_thread(talk_fd);
+            break;
+        }
+    }
+   
+    pthread_exit(NULL);
+}
+
+int wait_pre_process() {
+    my_state = CLIENT_STATE_WAITING;
     int listen_fd;
     if((listen_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         failHandler("create socket error!");
@@ -32,7 +82,6 @@ void create_wait_socket() {
 
     struct sockaddr_in * addr = malloc(sizeof(struct sockaddr_in));
     memset(addr, 0, sizeof(struct sockaddr_in));
-    // bzero(addr, sizeof(struct sockaddr_in));
     addr->sin_family = AF_INET;
     addr->sin_addr.s_addr = htonl(INADDR_ANY);
     addr->sin_port = htons(0);
@@ -41,32 +90,24 @@ void create_wait_socket() {
         failHandler("bind socket error!");
     }
     
+    if(listen(listen_fd, 1) < 0){
+        failHandler("listen socket error!");
+    }
+
+    pthread_t listen_thread;
+    if (pthread_create(&listen_thread, NULL, __listen_receive__, (void *)&listen_fd) != 0) {
+        failHandler("create thread error!");
+    }
+
     socklen_t len = sizeof(*addr);
     if (getsockname(listen_fd, (struct sockaddr *)addr, &len) == -1) {
 		failHandler("getsockname() failed");
 	}
-    talk_port = ntohs(addr->sin_port);
+    return ntohs(addr->sin_port);
 }
 
-void print_waiting_list(char * list) {
-    int idx = 1;
-	int i = 2;
-	int j = 3;
-	char name[CLIENT_NAME_LENGTH];
-	strncpy(name,list+2, 2);
-	while(j < strlen(list)-1){
-		if(list[j] == ':') {
-            bzero(name, CLIENT_NAME_LENGTH);
-			strncpy(name,list+i, j-i);
-			i = j+1;
-			printf("%d) %s\n",idx, name);
-			idx++;
-		}
-		j++;
-	}
-}
-
-void build_talk_connection(char * peer_name, char * ip, int port) {
+//connect related functions
+void __connect_peer__(char * peer_name, char * ip, int port) {
     if((talk_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         failHandler("create talk socket error!");
     }
@@ -74,74 +115,17 @@ void build_talk_connection(char * peer_name, char * ip, int port) {
     memset(addr, 0, sizeof(struct sockaddr_in));
     addr->sin_family = AF_INET;
     if(inet_aton(ip, &addr->sin_addr)<=0) { 
-        //warning error!
         failHandler("init talk socket addr error!");
     } 
     addr->sin_port = htons(port);
 
-	if(connect(server_fd, (struct sockaddr*)addr, (socklen_t)sizeof(struct sockaddr_in)) < 0){
-        failHandler("connect talk socket error!");
+	if(connect(talk_fd, (struct sockaddr*)addr, (socklen_t)sizeof(struct sockaddr_in)) < 0){
+        failHandler("connect peer error!");
     }
-    is_talking_flag = 1;
+    create_receive_thread(talk_fd);
 }
 
-void receive_msg(int socket) {
-    char buf[BUFFER_SIZE];
-    while(read(socket, buf, BUFFER_SIZE) > 0){
-        printf("%s\n", buf);
-        //todo: print peer name
-    }
-}
-
-void * peer_talk(void * arg) {
-    if (pthread_detach(pthread_self()) != 0)
-        exit(1);
-    int * sock = (int *)arg;
-    receive_msg(*sock);
-    pthread_exit(NULL);
-}
-
-void create_receive_thread() {
-    if (pthread_create(&talk_thread, NULL, peer_talk, (void *)&talk_fd) != 0) {
-        failHandler("create thread error!");
-    }
-}
-
-void read_waiting_list(int server_fd) {
-    char buf[BUFFER_SIZE];
-    bzero(buf, BUFFER_SIZE);
-    char *whole_list = malloc(BUFFER_SIZE);
-    bzero(whole_list, BUFFER_SIZE);
-    int rt = 0;
-    int idx = 0;
-    int total = 0;
-    while((rt = read(server_fd, buf, BUFFER_SIZE)) > 0) {
-        buf[rt] = 0x00;
-        idx++;
-        if(strcmp(buf, "l::") == 0 && idx == 1) {
-            printf("%s",no_available_client_msg);
-            return;
-        }else if (idx == 1){
-            strcpy(whole_list, buf);
-            total = rt;
-        }else{
-            whole_list = realloc(whole_list, idx*BUFFER_SIZE);
-            strcat(whole_list, buf);
-            total = total + rt;
-        }
-        whole_list[total] = 0x00;
-        if(strstr(buf, "::") > 0) {
-            break;
-        }
-        bzero(buf, BUFFER_SIZE);
-    }
-    print_waiting_list(whole_list);
-    bzero(whole_list, strlen(whole_list));
-    idx = 0;
-    total = 0;
-}
-
-void read_connect_peer(int server_fd) {
+void connect_after_process(int server_fd) {
     char buf[BUFFER_SIZE];
     bzero(buf,BUFFER_SIZE);
     if(read(server_fd, buf, BUFFER_SIZE) > 0) {
@@ -152,12 +136,12 @@ void read_connect_peer(int server_fd) {
             char * peer_name = strtok(NULL, ":");
             char * peer_ip = strtok(NULL, ":");
             char * peer_port = strtok(NULL, ":");
-            build_talk_connection(peer_name, peer_ip, atoi(peer_port));
-            create_receive_thread();
+            __connect_peer__(peer_name, peer_ip, atoi(peer_port));
         }
     }
 }
 
+//user input entrance
 void process_input(int server_fd) {
     char * input;
     char * cmd;
@@ -169,8 +153,12 @@ void process_input(int server_fd) {
         input = readline("> ");
         if('/' == input[0]) {
             cmd = strtok(input, " ");
+            if(should_command_work_with_state(cmd, my_state) == 0) {
+                printf("%s",state_not_match_msg);
+                continue;
+            }
             if(strcmp(cmd, "/wait") == 0) {
-                create_wait_socket();//TODO 
+                int talk_port = wait_pre_process(); 
                 buf = format_wait_cmd(my_name, talk_port, &buf_length);
             }else if(strcmp(cmd, "/list")  == 0) {
                 buf = format_list_cmd(my_name, &buf_length);
@@ -191,19 +179,21 @@ void process_input(int server_fd) {
             write(server_fd, buf, buf_length);
 
             if(strcmp(cmd, "/wait") == 0) {
-                //TODO need to block?
                 continue;
             }else if(strcmp(cmd, "/list") == 0) {
-                read_waiting_list(server_fd);
+                process_waiting_list(server_fd);
             }else if(strcmp(cmd, "/connect") == 0) {
-                read_connect_peer(server_fd);
+                connect_after_process(server_fd);//TODO
             }else if(strcmp(cmd, "/quit") == 0) {
                 close(server_fd);
+                if(my_state == CLIENT_STATE_TALKING) {
+                    close(talk_fd);
+                }
                 return;
             }
         }else{
-            if(is_talking_flag) {
-                write(talk_fd, input, strlen(input));
+            if(my_state == CLIENT_STATE_TALKING) {
+                send_msg_to_peer(talk_fd, input, my_name);
             }else{
                 printf("%s",invalid_input_msg);
                 continue;
@@ -212,45 +202,17 @@ void process_input(int server_fd) {
     }
 }
 
-void checkParam(int argc, char* argv[]) {
-	if(argc != 4) {
-        failHandler("Please use client by correct input! usage: ./client <server-ip> <server-port> <client-ip>");
+void INThandler(int sig) {
+    if(my_state == CLIENT_STATE_TALKING) {
+        shutdown(talk_fd, SHUT_RDWR);
     }
-    if(!isValidIP(argv[1])) {
-        failHandler("Please input correct server ip address!");
-    }
-    if(!isNumber(argv[2])) {
-        failHandler("Please input correct port number!");
-    }
-    if(check_user_name_length(argv[3]) == 0){
-        failHandler("Please input the user name less than 15 characters!");
-    }
-    if(isOnlyLettersOrNumbers(argv[3]) == 0) {
-        failHandler("Please input the user name with only letters or numbers!");
-    }
-}
-
-int check_name_conflict(char * my_name, int socket) {
-    char buf[BUFFER_SIZE];
-    bzero(buf, BUFFER_SIZE);
-    sprintf(buf, "a:%s:", my_name);
-    write(socket, buf, BUFFER_SIZE);
-    bzero(buf, BUFFER_SIZE);
-    if(read(socket, buf, BUFFER_SIZE) > 0) {
-        if(strcmp(buf, CMD_CONFIRM_JOIN) == 0){
-            return 1;
-        }else if (strcmp(buf, CMD_REJECTION_JOIN) == 0) {
-            return 0;
-        }else{
-            return -1;
-        }
-    }
-    return -1;
+    my_state = CLIENT_STATE_NORMAL;
 }
 
 int main(int argc, char* argv[]) {
-	checkParam(argc, argv);
+	check_param(argc, argv);
     my_name = argv[3];
+    int server_fd;
     if((server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         failHandler("create socket error!");
     }
@@ -276,7 +238,11 @@ int main(int argc, char* argv[]) {
         close(server_fd);
         failHandler("User name conflict! Exiting...");
     }
-    //business logic
+    
+    my_state = CLIENT_STATE_NORMAL;
+    signal(SIGINT, INThandler);
+    
+    //business logic entrance
     process_input(server_fd);
     
     return 0;
