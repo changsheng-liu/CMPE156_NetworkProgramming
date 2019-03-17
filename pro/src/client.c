@@ -24,6 +24,7 @@ client_state_t my_state;
 int talk_fd;
 int l_fd;
 int srvr_fd;
+int fromwait;
 
 //print peer relate functions
 void * __peer_receive__(void * arg) {
@@ -31,11 +32,14 @@ void * __peer_receive__(void * arg) {
         exit(1);
     char buf[BUFFER_SIZE];
     while(read(talk_fd, buf, BUFFER_SIZE) > 0){
-        printf("\n%s\n%s>", buf, my_name);
+        printf("\n%s\n%s> ", buf, my_name);
         fflush(stdout);
     }
-    printf("\npeer chatter has left!\n%s> ", my_name);
-    fflush(stdout);
+    if(fromwait == 1) {
+        printf("\npeer chatter has left!\n%s> ", my_name);
+        fflush(stdout);
+    }
+    
     my_state = CLIENT_STATE_NORMAL;
     pthread_exit(NULL);
 }
@@ -68,6 +72,7 @@ void * __listen_receive__(void * arg) {
             continue;
         }else if(ret > 0){
             talk_fd = accept(l_fd, (struct sockaddr*)NULL, NULL);
+            fromwait = 1;
             create_receive_thread(talk_fd);
             close(l_fd);
             break;
@@ -127,6 +132,7 @@ void __connect_peer__(char * peer_name, char * ip, int port) {
 	if(connect(talk_fd, (struct sockaddr*)addr, (socklen_t)sizeof(struct sockaddr_in)) < 0){
         failHandler("connect peer error!");
     }
+    fromwait = 1;
     create_receive_thread(talk_fd);
 }
 
@@ -172,7 +178,11 @@ void process_input(int server_fd) {
                 buf = format_list_cmd(my_name, &buf_length);
             }else if(strcmp(cmd, "/connect") == 0) {
                 char * peername = strtok(NULL, "");
-                if(strcmp(peername, my_name) == 0) {
+                if(peername == NULL) {
+                    printf("Please enter the user name you want to talk with!\n");
+                    continue;
+                }
+                if (strcmp(peername, my_name) == 0) {
                     printf("%s",talk_self_msg);
                     continue;
                 }
@@ -193,6 +203,8 @@ void process_input(int server_fd) {
             }else if(strcmp(cmd, "/connect") == 0) {
                 connect_after_process(server_fd);//TODO
             }else if(strcmp(cmd, "/quit") == 0) {
+                fromwait = 0;
+                printf("Leaving chatting room! Bye...\n");
                 close(server_fd);
                 if(my_state == CLIENT_STATE_TALKING) {
                     close(talk_fd);
@@ -212,6 +224,7 @@ void process_input(int server_fd) {
 
 void INThandler(int sig) {
     if(my_state == CLIENT_STATE_TALKING) {
+        fromwait = 0;
         shutdown(talk_fd, SHUT_RDWR);
         printf("\nLeave chating state!\n%s> ",my_name);
         fflush(stdout);
